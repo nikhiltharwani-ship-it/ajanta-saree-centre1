@@ -5,7 +5,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await SharedPreferences.getInstance();
   runApp(const AjantaApp());
 }
 
@@ -22,9 +21,7 @@ class AjantaApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Ajanta Saree Centre',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.black,
-        ),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.black),
         useMaterial3: true,
         inputDecorationTheme: const InputDecorationTheme(
           border: OutlineInputBorder(),
@@ -36,7 +33,7 @@ class AjantaApp extends StatelessWidget {
 }
 
 // ============================================================
-// INVENTORY MODEL
+// SAREE MODEL
 // ============================================================
 
 class Saree {
@@ -99,8 +96,8 @@ class Saree {
     );
   }
 
-  double getPrice(String priceCode) {
-    switch (priceCode.toUpperCase()) {
+  double getPrice(String code) {
+    switch (code.trim().toUpperCase()) {
       case 'A':
         return price1;
       case 'B':
@@ -129,11 +126,14 @@ class InventoryStorage {
     }
 
     try {
-      final List<dynamic> decoded = jsonDecode(data);
+      final decoded = jsonDecode(data) as List;
+
       return decoded
-          .map((item) => Saree.fromJson(
-                Map<String, dynamic>.from(item),
-              ))
+          .map(
+            (item) => Saree.fromJson(
+              Map<String, dynamic>.from(item),
+            ),
+          )
           .toList();
     } catch (_) {
       return [];
@@ -143,12 +143,183 @@ class InventoryStorage {
   static Future<void> save(List<Saree> sarees) async {
     final prefs = await SharedPreferences.getInstance();
 
-    final data = sarees.map((saree) => saree.toJson()).toList();
-
     await prefs.setString(
       key,
-      jsonEncode(data),
+      jsonEncode(
+        sarees.map((saree) => saree.toJson()).toList(),
+      ),
     );
+  }
+}
+
+// ============================================================
+// INVOICE ITEM
+// ============================================================
+
+class InvoiceItem {
+  String sareeId;
+  String sareeName;
+  String sareeCode;
+  String priceCode;
+  double quantity;
+  double price;
+
+  InvoiceItem({
+    required this.sareeId,
+    required this.sareeName,
+    required this.sareeCode,
+    required this.priceCode,
+    required this.quantity,
+    required this.price,
+  });
+
+  double get total => quantity * price;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'sareeId': sareeId,
+      'sareeName': sareeName,
+      'sareeCode': sareeCode,
+      'priceCode': priceCode,
+      'quantity': quantity,
+      'price': price,
+    };
+  }
+}
+
+// ============================================================
+// INVOICE MODEL
+// ============================================================
+
+class Invoice {
+  String number;
+  DateTime date;
+  String customerName;
+  List<InvoiceItem> items;
+  double subtotal;
+  double gst;
+  double grandTotal;
+  double paid;
+  double outstanding;
+
+  Invoice({
+    required this.number,
+    required this.date,
+    required this.customerName,
+    required this.items,
+    required this.subtotal,
+    required this.gst,
+    required this.grandTotal,
+    required this.paid,
+    required this.outstanding,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'number': number,
+      'date': date.toIso8601String(),
+      'customerName': customerName,
+      'items': items.map((e) => e.toJson()).toList(),
+      'subtotal': subtotal,
+      'gst': gst,
+      'grandTotal': grandTotal,
+      'paid': paid,
+      'outstanding': outstanding,
+    };
+  }
+}
+
+// ============================================================
+// INVOICE STORAGE
+// ============================================================
+
+class InvoiceStorage {
+  static const String invoicesKey = 'ajanta_invoices';
+  static const String numberKey = 'ajanta_invoice_number';
+
+  static Future<List<Invoice>> load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final data = prefs.getString(invoicesKey);
+
+    if (data == null || data.isEmpty) {
+      return [];
+    }
+
+    try {
+      final decoded = jsonDecode(data) as List;
+
+      return decoded.map((item) {
+        final map = Map<String, dynamic>.from(item);
+
+        final items = (map['items'] as List? ?? [])
+            .map(
+              (x) => InvoiceItem(
+                sareeId: x['sareeId']?.toString() ?? '',
+                sareeName: x['sareeName']?.toString() ?? '',
+                sareeCode: x['sareeCode']?.toString() ?? '',
+                priceCode: x['priceCode']?.toString() ?? '',
+                quantity:
+                    (x['quantity'] as num?)?.toDouble() ?? 0,
+                price:
+                    (x['price'] as num?)?.toDouble() ?? 0,
+              ),
+            )
+            .toList();
+
+        return Invoice(
+          number: map['number']?.toString() ?? '',
+          date: DateTime.tryParse(
+                map['date']?.toString() ?? '',
+              ) ??
+              DateTime.now(),
+          customerName:
+              map['customerName']?.toString() ?? '',
+          items: items,
+          subtotal:
+              (map['subtotal'] as num?)?.toDouble() ?? 0,
+          gst: (map['gst'] as num?)?.toDouble() ?? 0,
+          grandTotal:
+              (map['grandTotal'] as num?)?.toDouble() ?? 0,
+          paid: (map['paid'] as num?)?.toDouble() ?? 0,
+          outstanding:
+              (map['outstanding'] as num?)?.toDouble() ?? 0,
+        );
+      }).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static Future<void> save(List<Invoice> invoices) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.setString(
+      invoicesKey,
+      jsonEncode(
+        invoices.map((invoice) => invoice.toJson()).toList(),
+      ),
+    );
+  }
+
+  static Future<String> nextInvoiceNumber() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final now = DateTime.now();
+
+    final financialYearStart =
+        now.month >= 4 ? now.year : now.year - 1;
+
+    final financialYearEnd = financialYearStart + 1;
+
+    final yearText =
+        '$financialYearStart-$financialYearEnd';
+
+    final next =
+        (prefs.getInt(numberKey) ?? 0) + 1;
+
+    await prefs.setInt(numberKey, next);
+
+    return '$yearText/${next.toString().padLeft(3, '0')}';
   }
 }
 
@@ -183,9 +354,7 @@ class _LoginPageState extends State<LoginPage> {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (_) => HomePage(
-          customer: customer,
-        ),
+        builder: (_) => HomePage(customer: customer),
       ),
     );
   }
@@ -211,7 +380,6 @@ class _LoginPageState extends State<LoginPage> {
                   size: 75,
                 ),
                 const SizedBox(height: 15),
-
                 const Text(
                   'AJANTA SAREE CENTRE',
                   textAlign: TextAlign.center,
@@ -220,26 +388,18 @@ class _LoginPageState extends State<LoginPage> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-
                 const SizedBox(height: 5),
-
-                const Text(
-                  'Satna (M.P.)',
-                  style: TextStyle(
-                    fontSize: 16,
-                  ),
-                ),
-
+                const Text('Satna (M.P.)'),
                 const SizedBox(height: 30),
-
                 SegmentedButton<bool>(
                   segments: const [
-                    ButtonSegment<bool>(
+                    ButtonSegment(
                       value: false,
                       label: Text('Admin'),
-                      icon: Icon(Icons.admin_panel_settings),
+                      icon:
+                          Icon(Icons.admin_panel_settings),
                     ),
-                    ButtonSegment<bool>(
+                    ButtonSegment(
                       value: true,
                       label: Text('Customer'),
                       icon: Icon(Icons.person),
@@ -252,9 +412,7 @@ class _LoginPageState extends State<LoginPage> {
                     });
                   },
                 ),
-
                 const SizedBox(height: 20),
-
                 TextField(
                   controller: idController,
                   decoration: InputDecoration(
@@ -263,9 +421,7 @@ class _LoginPageState extends State<LoginPage> {
                     prefixIcon: const Icon(Icons.person),
                   ),
                 ),
-
                 const SizedBox(height: 14),
-
                 TextField(
                   controller: pinController,
                   obscureText: true,
@@ -274,9 +430,7 @@ class _LoginPageState extends State<LoginPage> {
                     prefixIcon: Icon(Icons.lock),
                   ),
                 ),
-
                 const SizedBox(height: 20),
-
                 SizedBox(
                   width: double.infinity,
                   height: 50,
@@ -286,14 +440,10 @@ class _LoginPageState extends State<LoginPage> {
                     label: const Text('LOGIN'),
                   ),
                 ),
-
                 const SizedBox(height: 15),
-
                 const Text(
                   'No OTP authentication',
-                  style: TextStyle(
-                    fontSize: 12,
-                  ),
+                  style: TextStyle(fontSize: 12),
                 ),
               ],
             ),
@@ -401,50 +551,38 @@ class DashboardPage extends StatelessWidget {
               fontWeight: FontWeight.bold,
             ),
           ),
-
           const Text('Satna (M.P.)'),
-
           const SizedBox(height: 20),
-
-          _dashboardCard(
-            icon: Icons.receipt_long,
-            title: "Today's Sales",
-            value: '₹0',
+          _card(
+            Icons.receipt_long,
+            "Today's Sales",
+            '₹0',
           ),
-
-          _dashboardCard(
-            icon: Icons.shopping_cart,
-            title: "Today's Purchases",
-            value: '₹0',
+          _card(
+            Icons.shopping_cart,
+            "Today's Purchases",
+            '₹0',
           ),
-
-          _dashboardCard(
-            icon: Icons.people,
-            title: 'Customer Outstanding',
-            value: '₹0',
+          _card(
+            Icons.people,
+            'Customer Outstanding',
+            '₹0',
           ),
-
-          _dashboardCard(
-            icon: Icons.store,
-            title: 'Trader Outstanding',
-            value: '₹0',
-          ),
-
-          _dashboardCard(
-            icon: Icons.inventory_2,
-            title: 'Total Stock',
-            value: '0',
+          _card(
+            Icons.store,
+            'Trader Outstanding',
+            '₹0',
           ),
         ],
       ),
     );
   }
 
-  Widget _dashboardCard({
-    required IconData icon,
-    required String title,
-    required String value,
-  }) {
+  Widget _card(
+    IconData icon,
+    String title,
+    String value,
+  ) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
@@ -453,7 +591,6 @@ class DashboardPage extends StatelessWidget {
         trailing: Text(
           value,
           style: const TextStyle(
-            fontSize: 17,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -463,17 +600,790 @@ class DashboardPage extends StatelessWidget {
 }
 
 // ============================================================
-// INVENTORY PAGE
+// SALES / INVOICE LIST
+// ============================================================
+
+class SalesPage extends StatefulWidget {
+  const SalesPage({super.key});
+
+  @override
+  State<SalesPage> createState() => _SalesPageState();
+}
+
+class _SalesPageState extends State<SalesPage> {
+  List<Invoice> invoices = [];
+  bool loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    loadInvoices();
+  }
+
+  Future<void> loadInvoices() async {
+    final data = await InvoiceStorage.load();
+
+    if (!mounted) return;
+
+    setState(() {
+      invoices = data;
+      loading = false;
+    });
+  }
+
+  Future<void> createInvoice() async {
+    final result = await Navigator.push<Invoice>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const CreateInvoicePage(),
+      ),
+    );
+
+    if (result != null) {
+      setState(() {
+        invoices.insert(0, result);
+      });
+
+      await InvoiceStorage.save(invoices);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Sales & Invoices',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+      body: loading
+          ? const Center(
+              child: CircularProgressIndicator(),
+            )
+          : invoices.isEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(30),
+                    child: Column(
+                      mainAxisAlignment:
+                          MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.receipt_long,
+                          size: 75,
+                        ),
+                        const SizedBox(height: 15),
+                        const Text(
+                          'No invoices yet',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Create your first invoice.',
+                        ),
+                        const SizedBox(height: 20),
+                        FilledButton.icon(
+                          onPressed: createInvoice,
+                          icon: const Icon(Icons.add),
+                          label:
+                              const Text('Create Invoice'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.all(12),
+                  itemCount: invoices.length,
+                  itemBuilder: (_, index) {
+                    final invoice = invoices[index];
+
+                    return Card(
+                      child: ListTile(
+                        leading: const CircleAvatar(
+                          child: Icon(
+                            Icons.receipt_long,
+                          ),
+                        ),
+                        title: Text(
+                          invoice.number,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        subtitle: Text(
+                          invoice.customerName.isEmpty
+                              ? 'Cash Customer'
+                              : invoice.customerName,
+                        ),
+                        trailing: Text(
+                          '₹${_formatNumber(invoice.grandTotal)}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: createInvoice,
+        icon: const Icon(Icons.add),
+        label: const Text('New Invoice'),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// CREATE INVOICE
+// ============================================================
+
+class CreateInvoicePage extends StatefulWidget {
+  const CreateInvoicePage({super.key});
+
+  @override
+  State<CreateInvoicePage> createState() =>
+      _CreateInvoicePageState();
+}
+
+class _CreateInvoicePageState
+    extends State<CreateInvoicePage> {
+  final customerController = TextEditingController();
+  final paidController = TextEditingController();
+
+  List<Saree> sarees = [];
+  List<InvoiceItem> items = [];
+
+  String invoiceNumber = '';
+  bool loading = true;
+
+  double get subtotal {
+    return items.fold(
+      0,
+      (sum, item) => sum + item.total,
+    );
+  }
+
+  double get gst {
+    return subtotal * 0.05;
+  }
+
+  double get grandTotal {
+    return subtotal + gst;
+  }
+
+  double get paid {
+    return double.tryParse(
+          paidController.text.replaceAll(',', '').trim(),
+        ) ??
+        0;
+  }
+
+  double get outstanding {
+    final value = grandTotal - paid;
+    return value < 0 ? 0 : value;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    initialize();
+    paidController.addListener(() {
+      setState(() {});
+    });
+  }
+
+  Future<void> initialize() async {
+    final inventory = await InventoryStorage.load();
+    final number = await InvoiceStorage.nextInvoiceNumber();
+
+    if (!mounted) return;
+
+    setState(() {
+      sarees = inventory;
+      invoiceNumber = number;
+      loading = false;
+    });
+  }
+
+  Future<void> addItem() async {
+    if (sarees.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please add sarees to Inventory first.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final result =
+        await showModalBottomSheet<InvoiceItem>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => AddInvoiceItemSheet(
+        sarees: sarees,
+      ),
+    );
+
+    if (result != null) {
+      setState(() {
+        items.add(result);
+      });
+    }
+  }
+
+  Future<void> saveInvoice() async {
+    if (items.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Add at least one item to the invoice.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final invoice = Invoice(
+      number: invoiceNumber,
+      date: DateTime.now(),
+      customerName:
+          customerController.text.trim(),
+      items: items,
+      subtotal: subtotal,
+      gst: gst,
+      grandTotal: grandTotal,
+      paid: paid,
+      outstanding: outstanding,
+    );
+
+    Navigator.pop(context, invoice);
+  }
+
+  @override
+  void dispose() {
+    customerController.dispose();
+    paidController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Create Invoice'),
+      ),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(15),
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'AJANTA SAREE CENTRE',
+                      style: TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      'Invoice No: $invoiceNumber',
+                    ),
+                    Text(
+                      'Date: ${_dateText(DateTime.now())}',
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            TextField(
+              controller: customerController,
+              decoration: const InputDecoration(
+                labelText: 'Customer Name',
+                prefixIcon: Icon(Icons.person),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Items',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                FilledButton.icon(
+                  onPressed: addItem,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add'),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 10),
+
+            if (items.isEmpty)
+              const Card(
+                child: Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Center(
+                    child: Text(
+                      'No items added',
+                    ),
+                  ),
+                ),
+              ),
+
+            ...items.asMap().entries.map(
+              (entry) {
+                final index = entry.key;
+                final item = entry.value;
+
+                return Card(
+                  child: ListTile(
+                    title: Text(
+                      item.sareeName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    subtitle: Text(
+                      '${item.sareeCode.isEmpty ? '' : '${item.sareeCode} • '}${item.quantity} × ₹${_formatNumber(item.price)} • Code ${item.priceCode}',
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '₹${_formatNumber(item.total)}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () {
+                            setState(() {
+                              items.removeAt(index);
+                            });
+                          },
+                          icon: const Icon(Icons.delete),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+
+            const SizedBox(height: 20),
+
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    _summaryRow(
+                      'Subtotal',
+                      subtotal,
+                    ),
+                    _summaryRow(
+                      'GST @ 5%',
+                      gst,
+                    ),
+                    const Divider(),
+                    _summaryRow(
+                      'Grand Total',
+                      grandTotal,
+                      bold: true,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 15),
+
+            TextField(
+              controller: paidController,
+              keyboardType:
+                  const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(
+                labelText: 'Amount Received',
+                prefixText: '₹ ',
+                prefixIcon:
+                    Icon(Icons.payments),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: _summaryRow(
+                  'Outstanding',
+                  outstanding,
+                  bold: true,
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 25),
+
+            SizedBox(
+              height: 52,
+              child: FilledButton.icon(
+                onPressed: saveInvoice,
+                icon: const Icon(Icons.save),
+                label: const Text('SAVE INVOICE'),
+              ),
+            ),
+
+            const SizedBox(height: 30),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _summaryRow(
+    String title,
+    double value, {
+    bool bold = false,
+  }) {
+    return Padding(
+      padding:
+          const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(
+                fontWeight: bold
+                    ? FontWeight.bold
+                    : FontWeight.normal,
+                fontSize: bold ? 17 : 15,
+              ),
+            ),
+          ),
+          Text(
+            '₹${_formatNumber(value)}',
+            style: TextStyle(
+              fontWeight: bold
+                  ? FontWeight.bold
+                  : FontWeight.normal,
+              fontSize: bold ? 18 : 15,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================
+// ADD INVOICE ITEM
+// ============================================================
+
+class AddInvoiceItemSheet extends StatefulWidget {
+  final List<Saree> sarees;
+
+  const AddInvoiceItemSheet({
+    super.key,
+    required this.sarees,
+  });
+
+  @override
+  State<AddInvoiceItemSheet> createState() =>
+      _AddInvoiceItemSheetState();
+}
+
+class _AddInvoiceItemSheetState
+    extends State<AddInvoiceItemSheet> {
+  Saree? selectedSaree;
+
+  final quantityController =
+      TextEditingController(text: '1');
+
+  final priceCodeController =
+      TextEditingController();
+
+  double selectedPrice = 0;
+
+  String? error;
+
+  void updatePrice() {
+    final code =
+        priceCodeController.text.trim().toUpperCase();
+
+    if (selectedSaree != null &&
+        (code == 'A' ||
+            code == 'B' ||
+            code == 'C')) {
+      setState(() {
+        selectedPrice =
+            selectedSaree!.getPrice(code);
+        error = null;
+      });
+    } else {
+      setState(() {
+        selectedPrice = 0;
+      });
+    }
+  }
+
+  void save() {
+    if (selectedSaree == null) {
+      setState(() {
+        error = 'Please select a saree.';
+      });
+      return;
+    }
+
+    final code =
+        priceCodeController.text.trim().toUpperCase();
+
+    if (code != 'A' &&
+        code != 'B' &&
+        code != 'C') {
+      setState(() {
+        error =
+            'Enter A, B or C as the price code.';
+      });
+      return;
+    }
+
+    final quantity = double.tryParse(
+          quantityController.text.trim(),
+        ) ??
+        0;
+
+    if (quantity <= 0) {
+      setState(() {
+        error = 'Enter a valid quantity.';
+      });
+      return;
+    }
+
+    final price = selectedSaree!.getPrice(code);
+
+    if (price <= 0) {
+      setState(() {
+        error =
+            'No price is set for code $code.';
+      });
+      return;
+    }
+
+    Navigator.pop(
+      context,
+      InvoiceItem(
+        sareeId: selectedSaree!.id,
+        sareeName: selectedSaree!.name,
+        sareeCode: selectedSaree!.code,
+        priceCode: code,
+        quantity: quantity,
+        price: price,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    quantityController.dispose();
+    priceCodeController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 20,
+        bottom:
+            MediaQuery.of(context).viewInsets.bottom + 20,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Add Invoice Item',
+              style: TextStyle(
+                fontSize: 21,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            DropdownButtonFormField<Saree>(
+              value: selectedSaree,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Select Saree',
+                prefixIcon:
+                    Icon(Icons.checkroom),
+              ),
+              items: widget.sarees.map((saree) {
+                return DropdownMenuItem<Saree>(
+                  value: saree,
+                  child: Text(
+                    saree.code.isEmpty
+                        ? saree.name
+                        : '${saree.name} (${saree.code})',
+                    overflow:
+                        TextOverflow.ellipsis,
+                  ),
+                );
+              }).toList(),
+              onChanged: (value) {
+                setState(() {
+                  selectedSaree = value;
+                  selectedPrice = 0;
+                });
+                updatePrice();
+              },
+            ),
+
+            const SizedBox(height: 15),
+
+            TextField(
+              controller: priceCodeController,
+              textCapitalization:
+                  TextCapitalization.characters,
+              maxLength: 1,
+              onChanged: (_) => updatePrice(),
+              decoration: const InputDecoration(
+                labelText: 'Price Code',
+                hintText: 'A / B / C',
+                prefixIcon: Icon(Icons.sell),
+                counterText: '',
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  children: [
+                    const Text(
+                      'Automatic Price',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      selectedPrice > 0
+                          ? '₹${_formatNumber(selectedPrice)}'
+                          : 'Enter A, B or C',
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 15),
+
+            TextField(
+              controller: quantityController,
+              keyboardType:
+                  const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(
+                labelText: 'Quantity',
+                prefixIcon:
+                    Icon(Icons.numbers),
+              ),
+            ),
+
+            if (error != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                error!,
+                style: const TextStyle(
+                  color: Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 20),
+
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: FilledButton.icon(
+                onPressed: save,
+                icon: const Icon(Icons.add),
+                label: const Text('ADD TO INVOICE'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// INVENTORY
 // ============================================================
 
 class InventoryPage extends StatefulWidget {
   const InventoryPage({super.key});
 
   @override
-  State<InventoryPage> createState() => _InventoryPageState();
+  State<InventoryPage> createState() =>
+      _InventoryPageState();
 }
 
-class _InventoryPageState extends State<InventoryPage> {
+class _InventoryPageState
+    extends State<InventoryPage> {
   List<Saree> sarees = [];
   bool loading = true;
 
@@ -500,17 +1410,24 @@ class _InventoryPageState extends State<InventoryPage> {
     await InventoryStorage.save(sarees);
   }
 
-  List<Saree> get filteredSarees {
-    final search = searchController.text.trim().toLowerCase();
+  List<Saree> get filtered {
+    final search =
+        searchController.text.trim().toLowerCase();
 
     if (search.isEmpty) {
       return sarees;
     }
 
     return sarees.where((saree) {
-      return saree.name.toLowerCase().contains(search) ||
-          saree.code.toLowerCase().contains(search) ||
-          saree.category.toLowerCase().contains(search);
+      return saree.name
+              .toLowerCase()
+              .contains(search) ||
+          saree.code
+              .toLowerCase()
+              .contains(search) ||
+          saree.category
+              .toLowerCase()
+              .contains(search);
     }).toList();
   }
 
@@ -542,8 +1459,9 @@ class _InventoryPageState extends State<InventoryPage> {
     );
 
     if (result != null) {
-      final index =
-          sarees.indexWhere((item) => item.id == result.id);
+      final index = sarees.indexWhere(
+        (x) => x.id == result.id,
+      );
 
       if (index != -1) {
         setState(() {
@@ -556,34 +1474,33 @@ class _InventoryPageState extends State<InventoryPage> {
   }
 
   Future<void> deleteSaree(Saree saree) async {
-    final confirm = await showDialog<bool>(
+    final confirm =
+        await showDialog<bool>(
       context: context,
-      builder: (_) {
-        return AlertDialog(
-          title: const Text('Delete Saree?'),
-          content: Text(
-            'Delete "${saree.name}" from inventory?',
+      builder: (_) => AlertDialog(
+        title: const Text('Delete Saree?'),
+        content: Text(
+          'Delete "${saree.name}"?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(context, false),
+            child: const Text('CANCEL'),
           ),
-          actions: [
-            TextButton(
-              onPressed: () =>
-                  Navigator.pop(context, false),
-              child: const Text('CANCEL'),
-            ),
-            FilledButton(
-              onPressed: () =>
-                  Navigator.pop(context, true),
-              child: const Text('DELETE'),
-            ),
-          ],
-        );
-      },
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(context, true),
+            child: const Text('DELETE'),
+          ),
+        ],
+      ),
     );
 
     if (confirm == true) {
       setState(() {
         sarees.removeWhere(
-          (item) => item.id == saree.id,
+          (x) => x.id == saree.id,
         );
       });
 
@@ -599,293 +1516,122 @@ class _InventoryPageState extends State<InventoryPage> {
 
   @override
   Widget build(BuildContext context) {
-    final items = filteredSarees;
-
-    return SafeArea(
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text(
-            'Inventory',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-            ),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Inventory',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
           ),
-          actions: [
-            IconButton(
-              onPressed: addSaree,
-              icon: const Icon(Icons.add),
-              tooltip: 'Add Saree',
-            ),
-          ],
         ),
-        body: loading
-            ? const Center(
-                child: CircularProgressIndicator(),
-              )
-            : Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: TextField(
-                      controller: searchController,
-                      onChanged: (_) {
-                        setState(() {});
-                      },
-                      decoration: InputDecoration(
-                        hintText:
-                            'Search saree, code or category',
-                        prefixIcon:
-                            const Icon(Icons.search),
-                        suffixIcon:
-                            searchController.text.isNotEmpty
-                                ? IconButton(
-                                    onPressed: () {
-                                      searchController.clear();
-                                      setState(() {});
-                                    },
-                                    icon:
-                                        const Icon(Icons.clear),
-                                  )
-                                : null,
-                      ),
+      ),
+      body: loading
+          ? const Center(
+              child: CircularProgressIndicator(),
+            )
+          : Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: TextField(
+                    controller: searchController,
+                    onChanged: (_) {
+                      setState(() {});
+                    },
+                    decoration: InputDecoration(
+                      hintText:
+                          'Search saree, code or category',
+                      prefixIcon:
+                          const Icon(Icons.search),
+                      suffixIcon:
+                          searchController.text.isNotEmpty
+                              ? IconButton(
+                                  onPressed: () {
+                                    searchController.clear();
+                                    setState(() {});
+                                  },
+                                  icon:
+                                      const Icon(Icons.clear),
+                                )
+                              : null,
                     ),
                   ),
-
-                  Expanded(
-                    child: items.isEmpty
-                        ? _emptyInventory()
-                        : ListView.builder(
-                            padding:
-                                const EdgeInsets.fromLTRB(
-                              12,
-                              0,
-                              12,
-                              90,
-                            ),
-                            itemCount: items.length,
-                            itemBuilder: (_, index) {
-                              final saree = items[index];
-
-                              return _sareeCard(saree);
-                            },
+                ),
+                Expanded(
+                  child: filtered.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'No sarees found',
                           ),
-                  ),
-                ],
-              ),
-        floatingActionButton: FloatingActionButton.extended(
-          onPressed: addSaree,
-          icon: const Icon(Icons.add),
-          label: const Text('Add Saree'),
-        ),
-      ),
-    );
-  }
+                        )
+                      : ListView.builder(
+                          padding:
+                              const EdgeInsets.all(12),
+                          itemCount: filtered.length,
+                          itemBuilder: (_, index) {
+                            final saree =
+                                filtered[index];
 
-  Widget _emptyInventory() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(30),
-        child: Column(
-          mainAxisAlignment:
-              MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.inventory_2_outlined,
-              size: 75,
-            ),
-            const SizedBox(height: 15),
-            const Text(
-              'No sarees added yet',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Add your first saree to start building your inventory.',
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 20),
-            FilledButton.icon(
-              onPressed: addSaree,
-              icon: const Icon(Icons.add),
-              label: const Text('Add Saree'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _sareeCard(Saree saree) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    saree.name,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                PopupMenuButton<String>(
-                  onSelected: (value) {
-                    if (value == 'edit') {
-                      editSaree(saree);
-                    } else if (value == 'delete') {
-                      deleteSaree(saree);
-                    }
-                  },
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(
-                      value: 'edit',
-                      child: ListTile(
-                        leading: Icon(Icons.edit),
-                        title: Text('Edit'),
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: 'delete',
-                      child: ListTile(
-                        leading: Icon(Icons.delete),
-                        title: Text('Delete'),
-                      ),
-                    ),
-                  ],
+                            return Card(
+                              child: ListTile(
+                                title: Text(
+                                  saree.name,
+                                  style:
+                                      const TextStyle(
+                                    fontWeight:
+                                        FontWeight.bold,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  'A ₹${_formatNumber(saree.price1)}   '
+                                  'B ₹${_formatNumber(saree.price2)}   '
+                                  'C ₹${_formatNumber(saree.price3)}\n'
+                                  'Stock: ${_formatNumber(saree.stock)}',
+                                ),
+                                isThreeLine: true,
+                                trailing:
+                                    PopupMenuButton<String>(
+                                  onSelected: (value) {
+                                    if (value ==
+                                        'edit') {
+                                      editSaree(saree);
+                                    } else {
+                                      deleteSaree(
+                                          saree);
+                                    }
+                                  },
+                                  itemBuilder: (_) => const [
+                                    PopupMenuItem(
+                                      value: 'edit',
+                                      child:
+                                          Text('Edit'),
+                                    ),
+                                    PopupMenuItem(
+                                      value: 'delete',
+                                      child:
+                                          Text('Delete'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
                 ),
               ],
             ),
-
-            if (saree.code.isNotEmpty)
-              Text(
-                'Code: ${saree.code}',
-                style: const TextStyle(
-                  color: Colors.grey,
-                ),
-              ),
-
-            if (saree.category.isNotEmpty)
-              Text(
-                'Category: ${saree.category}',
-                style: const TextStyle(
-                  color: Colors.grey,
-                ),
-              ),
-
-            const Divider(height: 22),
-
-            Row(
-              children: [
-                Expanded(
-                  child: _priceBox(
-                    'A',
-                    saree.price1,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _priceBox(
-                    'B',
-                    saree.price2,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _priceBox(
-                    'C',
-                    saree.price3,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            Row(
-              children: [
-                const Icon(
-                  Icons.inventory_2,
-                  size: 20,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'Stock: ${_formatNumber(saree.stock)}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  'Purchase ₹${_formatNumber(saree.purchasePrice)}',
-                  style: const TextStyle(
-                    color: Colors.grey,
-                  ),
-                ),
-              ],
-            ),
-
-            if (saree.trader.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Text(
-                'Trader: ${saree.trader}',
-                style: const TextStyle(
-                  color: Colors.grey,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _priceBox(
-    String code,
-    double price,
-  ) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        vertical: 10,
-        horizontal: 8,
-      ),
-      decoration: BoxDecoration(
-        border: Border.all(),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        children: [
-          Text(
-            code,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-            ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            '₹${_formatNumber(price)}',
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
+      floatingActionButton:
+          FloatingActionButton.extended(
+        onPressed: addSaree,
+        icon: const Icon(Icons.add),
+        label: const Text('Add Saree'),
       ),
     );
   }
 }
 
 // ============================================================
-// ADD / EDIT SAREE
+// SAREE FORM
 // ============================================================
 
 class SareeFormPage extends StatefulWidget {
@@ -901,54 +1647,45 @@ class SareeFormPage extends StatefulWidget {
       _SareeFormPageState();
 }
 
-class _SareeFormPageState extends State<SareeFormPage> {
-  final nameController = TextEditingController();
-  final codeController = TextEditingController();
-  final categoryController = TextEditingController();
-  final purchaseController = TextEditingController();
-  final price1Controller = TextEditingController();
-  final price2Controller = TextEditingController();
-  final price3Controller = TextEditingController();
-  final stockController = TextEditingController();
-  final traderController = TextEditingController();
-  final notesController = TextEditingController();
-
-  bool get editing => widget.saree != null;
+class _SareeFormPageState
+    extends State<SareeFormPage> {
+  final name = TextEditingController();
+  final code = TextEditingController();
+  final category = TextEditingController();
+  final purchase = TextEditingController();
+  final price1 = TextEditingController();
+  final price2 = TextEditingController();
+  final price3 = TextEditingController();
+  final stock = TextEditingController();
+  final trader = TextEditingController();
+  final notes = TextEditingController();
 
   @override
   void initState() {
     super.initState();
 
-    final saree = widget.saree;
+    final s = widget.saree;
 
-    if (saree != null) {
-      nameController.text = saree.name;
-      codeController.text = saree.code;
-      categoryController.text = saree.category;
-      purchaseController.text =
-          _numberForEditing(saree.purchasePrice);
-      price1Controller.text =
-          _numberForEditing(saree.price1);
-      price2Controller.text =
-          _numberForEditing(saree.price2);
-      price3Controller.text =
-          _numberForEditing(saree.price3);
-      stockController.text =
-          _numberForEditing(saree.stock);
-      traderController.text = saree.trader;
-      notesController.text = saree.notes;
+    if (s != null) {
+      name.text = s.name;
+      code.text = s.code;
+      category.text = s.category;
+      purchase.text =
+          _formatNumber(s.purchasePrice);
+      price1.text =
+          _formatNumber(s.price1);
+      price2.text =
+          _formatNumber(s.price2);
+      price3.text =
+          _formatNumber(s.price3);
+      stock.text =
+          _formatNumber(s.stock);
+      trader.text = s.trader;
+      notes.text = s.notes;
     }
   }
 
-  String _numberForEditing(double value) {
-    if (value == value.roundToDouble()) {
-      return value.toInt().toString();
-    }
-
-    return value.toString();
-  }
-
-  double _parse(String value) {
+  double parse(String value) {
     return double.tryParse(
           value.replaceAll(',', '').trim(),
         ) ??
@@ -956,10 +1693,12 @@ class _SareeFormPageState extends State<SareeFormPage> {
   }
 
   void save() {
-    if (nameController.text.trim().isEmpty) {
+    if (name.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Saree name is required'),
+          content: Text(
+            'Saree name is required.',
+          ),
         ),
       );
       return;
@@ -972,16 +1711,16 @@ class _SareeFormPageState extends State<SareeFormPage> {
           DateTime.now()
               .microsecondsSinceEpoch
               .toString(),
-      name: nameController.text.trim(),
-      code: codeController.text.trim(),
-      category: categoryController.text.trim(),
-      purchasePrice: _parse(purchaseController.text),
-      price1: _parse(price1Controller.text),
-      price2: _parse(price2Controller.text),
-      price3: _parse(price3Controller.text),
-      stock: _parse(stockController.text),
-      trader: traderController.text.trim(),
-      notes: notesController.text.trim(),
+      name: name.text.trim(),
+      code: code.text.trim(),
+      category: category.text.trim(),
+      purchasePrice: parse(purchase.text),
+      price1: parse(price1.text),
+      price2: parse(price2.text),
+      price3: parse(price3.text),
+      stock: parse(stock.text),
+      trader: trader.text.trim(),
+      notes: notes.text.trim(),
     );
 
     Navigator.pop(context, saree);
@@ -989,16 +1728,16 @@ class _SareeFormPageState extends State<SareeFormPage> {
 
   @override
   void dispose() {
-    nameController.dispose();
-    codeController.dispose();
-    categoryController.dispose();
-    purchaseController.dispose();
-    price1Controller.dispose();
-    price2Controller.dispose();
-    price3Controller.dispose();
-    stockController.dispose();
-    traderController.dispose();
-    notesController.dispose();
+    name.dispose();
+    code.dispose();
+    category.dispose();
+    purchase.dispose();
+    price1.dispose();
+    price2.dispose();
+    price3.dispose();
+    stock.dispose();
+    trader.dispose();
+    notes.dispose();
     super.dispose();
   }
 
@@ -1007,230 +1746,129 @@ class _SareeFormPageState extends State<SareeFormPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          editing ? 'Edit Saree' : 'Add Saree',
+          widget.saree == null
+              ? 'Add Saree'
+              : 'Edit Saree',
         ),
       ),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            const Text(
-              'Basic Information',
-              style: TextStyle(
-                fontSize: 19,
-                fontWeight: FontWeight.bold,
-              ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          TextField(
+            controller: name,
+            decoration: const InputDecoration(
+              labelText: 'Saree Name *',
             ),
-
-            const SizedBox(height: 15),
-
-            TextField(
-              controller: nameController,
-              textCapitalization:
-                  TextCapitalization.words,
-              decoration: const InputDecoration(
-                labelText: 'Saree Name *',
-                prefixIcon: Icon(Icons.checkroom),
-              ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: code,
+            decoration: const InputDecoration(
+              labelText: 'Saree Code',
             ),
-
-            const SizedBox(height: 12),
-
-            TextField(
-              controller: codeController,
-              decoration: const InputDecoration(
-                labelText: 'Saree Code',
-                prefixIcon: Icon(Icons.qr_code),
-              ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: category,
+            decoration: const InputDecoration(
+              labelText: 'Category',
             ),
-
-            const SizedBox(height: 12),
-
-            TextField(
-              controller: categoryController,
-              decoration: const InputDecoration(
-                labelText: 'Category',
-                prefixIcon: Icon(Icons.category),
-              ),
+          ),
+          const SizedBox(height: 20),
+          TextField(
+            controller: purchase,
+            keyboardType:
+                const TextInputType.numberWithOptions(
+              decimal: true,
             ),
-
-            const SizedBox(height: 25),
-
-            const Text(
-              'Pricing',
-              style: TextStyle(
-                fontSize: 19,
-                fontWeight: FontWeight.bold,
-              ),
+            decoration: const InputDecoration(
+              labelText: 'Purchase Price',
+              prefixText: '₹ ',
             ),
-
-            const SizedBox(height: 15),
-
-            TextField(
-              controller: purchaseController,
-              keyboardType:
-                  const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              decoration: const InputDecoration(
-                labelText: 'Purchase Price',
-                prefixText: '₹ ',
-                prefixIcon: Icon(Icons.shopping_cart),
-              ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: price1,
+            keyboardType:
+                const TextInputType.numberWithOptions(
+              decimal: true,
             ),
-
-            const SizedBox(height: 12),
-
-            TextField(
-              controller: price1Controller,
-              keyboardType:
-                  const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              decoration: const InputDecoration(
-                labelText: 'Price 1 — Code A',
-                prefixText: '₹ ',
-                prefixIcon: Icon(Icons.sell),
-              ),
+            decoration: const InputDecoration(
+              labelText: 'Price 1 — A',
+              prefixText: '₹ ',
             ),
-
-            const SizedBox(height: 12),
-
-            TextField(
-              controller: price2Controller,
-              keyboardType:
-                  const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              decoration: const InputDecoration(
-                labelText: 'Price 2 — Code B',
-                prefixText: '₹ ',
-                prefixIcon: Icon(Icons.sell),
-              ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: price2,
+            keyboardType:
+                const TextInputType.numberWithOptions(
+              decimal: true,
             ),
-
-            const SizedBox(height: 12),
-
-            TextField(
-              controller: price3Controller,
-              keyboardType:
-                  const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              decoration: const InputDecoration(
-                labelText: 'Price 3 — Code C',
-                prefixText: '₹ ',
-                prefixIcon: Icon(Icons.sell),
-              ),
+            decoration: const InputDecoration(
+              labelText: 'Price 2 — B',
+              prefixText: '₹ ',
             ),
-
-            const SizedBox(height: 25),
-
-            const Text(
-              'Stock & Supplier',
-              style: TextStyle(
-                fontSize: 19,
-                fontWeight: FontWeight.bold,
-              ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: price3,
+            keyboardType:
+                const TextInputType.numberWithOptions(
+              decimal: true,
             ),
-
-            const SizedBox(height: 15),
-
-            TextField(
-              controller: stockController,
-              keyboardType:
-                  const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              decoration: const InputDecoration(
-                labelText: 'Current / Opening Stock',
-                prefixIcon: Icon(Icons.inventory_2),
-              ),
+            decoration: const InputDecoration(
+              labelText: 'Price 3 — C',
+              prefixText: '₹ ',
             ),
-
-            const SizedBox(height: 12),
-
-            TextField(
-              controller: traderController,
-              decoration: const InputDecoration(
-                labelText: 'Trader / Supplier',
-                prefixIcon: Icon(Icons.store),
-              ),
+          ),
+          const SizedBox(height: 20),
+          TextField(
+            controller: stock,
+            keyboardType:
+                const TextInputType.numberWithOptions(
+              decimal: true,
             ),
-
-            const SizedBox(height: 12),
-
-            TextField(
-              controller: notesController,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Notes',
-                prefixIcon: Icon(Icons.notes),
-              ),
+            decoration: const InputDecoration(
+              labelText: 'Stock',
             ),
-
-            const SizedBox(height: 30),
-
-            SizedBox(
-              height: 52,
-              child: FilledButton.icon(
-                onPressed: save,
-                icon: const Icon(Icons.save),
-                label: Text(
-                  editing
-                      ? 'UPDATE SAREE'
-                      : 'SAVE SAREE',
-                ),
-              ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: trader,
+            decoration: const InputDecoration(
+              labelText: 'Trader / Supplier',
             ),
-
-            const SizedBox(height: 30),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ============================================================
-// SALES PLACEHOLDER
-// ============================================================
-
-class SalesPage extends StatelessWidget {
-  const SalesPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Sales'),
-        ),
-        body: const Center(
-          child: Padding(
-            padding: EdgeInsets.all(25),
-            child: Text(
-              'INVOICE MODULE\n\n'
-              'The next stage will add:\n\n'
-              'A → Price 1\n'
-              'B → Price 2\n'
-              'C → Price 3\n\n'
-              'GST • Invoice numbering • PDF • '
-              'Customer ledger',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 18,
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: notes,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              labelText: 'Notes',
+            ),
+          ),
+          const SizedBox(height: 25),
+          SizedBox(
+            height: 52,
+            child: FilledButton.icon(
+              onPressed: save,
+              icon: const Icon(Icons.save),
+              label: Text(
+                widget.saree == null
+                    ? 'SAVE SAREE'
+                    : 'UPDATE SAREE',
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
 }
 
 // ============================================================
-// ACCOUNTS PLACEHOLDER
+// ACCOUNTS
 // ============================================================
 
 class AccountsPage extends StatelessWidget {
@@ -1238,28 +1876,30 @@ class AccountsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Accounts'),
-        ),
-        body: const Center(
-          child: Padding(
-            padding: EdgeInsets.all(25),
-            child: Text(
-              'ACCOUNTS\n\n'
-              'Customers\n'
-              'Customer Outstanding\n'
-              'Payments\n'
-              'Trader / Supplier Ledger\n'
-              'Purchase Bills',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 19,
-              ),
-            ),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Accounts'),
+      ),
+      body: const ListView(
+        padding: EdgeInsets.all(16),
+        children: [
+          ListTile(
+            leading: Icon(Icons.people),
+            title: Text('Customers'),
           ),
-        ),
+          ListTile(
+            leading: Icon(Icons.payments),
+            title: Text('Payments'),
+          ),
+          ListTile(
+            leading: Icon(Icons.account_balance_wallet),
+            title: Text('Customer Outstanding'),
+          ),
+          ListTile(
+            leading: Icon(Icons.store),
+            title: Text('Traders / Suppliers'),
+          ),
+        ],
       ),
     );
   }
@@ -1274,40 +1914,40 @@ class MorePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('More'),
-        ),
-        body: ListView(
-          padding: const EdgeInsets.all(16),
-          children: const [
-            ListTile(
-              leading: Icon(Icons.shopping_bag),
-              title: Text('Purchases'),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('More'),
+      ),
+      body: const ListView(
+        padding: EdgeInsets.all(16),
+        children: [
+          ListTile(
+            leading: Icon(Icons.shopping_bag),
+            title: Text('Purchases'),
+          ),
+          ListTile(
+            leading: Icon(Icons.assignment_return),
+            title: Text('Returns'),
+          ),
+          ListTile(
+            leading: Icon(
+              Icons.account_balance_wallet,
             ),
-            ListTile(
-              leading: Icon(Icons.assignment_return),
-              title: Text('Returns'),
-            ),
-            ListTile(
-              leading: Icon(Icons.account_balance_wallet),
-              title: Text('Cashbook'),
-            ),
-            ListTile(
-              leading: Icon(Icons.bar_chart),
-              title: Text('Reports'),
-            ),
-            ListTile(
-              leading: Icon(Icons.backup),
-              title: Text('Backup / Restore'),
-            ),
-            ListTile(
-              leading: Icon(Icons.settings),
-              title: Text('Settings'),
-            ),
-          ],
-        ),
+            title: Text('Cashbook'),
+          ),
+          ListTile(
+            leading: Icon(Icons.bar_chart),
+            title: Text('Reports'),
+          ),
+          ListTile(
+            leading: Icon(Icons.backup),
+            title: Text('Backup / Restore'),
+          ),
+          ListTile(
+            leading: Icon(Icons.settings),
+            title: Text('Settings'),
+          ),
+        ],
       ),
     );
   }
@@ -1323,4 +1963,10 @@ String _formatNumber(double value) {
   }
 
   return value.toStringAsFixed(2);
+}
+
+String _dateText(DateTime date) {
+  return '${date.day.toString().padLeft(2, '0')}/'
+      '${date.month.toString().padLeft(2, '0')}/'
+      '${date.year}';
 }
