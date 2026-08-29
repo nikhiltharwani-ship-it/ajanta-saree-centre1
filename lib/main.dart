@@ -1880,7 +1880,7 @@ class AccountsPage extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Accounts'),
       ),
-      body: const ListView(
+      body: ListView(
         padding: EdgeInsets.all(16),
         children: [
           ListTile(
@@ -1918,7 +1918,7 @@ class MorePage extends StatelessWidget {
       appBar: AppBar(
         title: const Text('More'),
       ),
-      body: const ListView(
+      body: ListView(
         padding: EdgeInsets.all(16),
         children: [
           ListTile(
