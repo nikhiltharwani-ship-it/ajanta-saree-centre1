@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "30442592755",
+    "project_id": "asc-ajanta-saree-centre",
+    "storage_bucket": "asc-ajanta-saree-centre.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:30442592755:android:50571c293fca64cd6e9a86",
+        "android_client_info": {
+          "package_name": "com.ajantasareecentre.asc"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCa67x7gZa0S-LtSfkhF_5ClA_dnINDHzo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
