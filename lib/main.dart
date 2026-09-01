@@ -442,76 +442,84 @@ class _LoginPageState extends State<LoginPage> {
 
   bool customer = false;
 
-  void login() {
-    final enteredId =
-        idController.text.trim();
+  Future<void> login() async {
+  final enteredId = idController.text.trim();
+  final enteredPin = pinController.text.trim();
 
-    final enteredPin =
-        pinController.text.trim();
+  if (enteredId.isEmpty || enteredPin.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Please enter ID and PIN'),
+      ),
+    );
+    return;
+  }
 
-    if (enteredId.isEmpty ||
-        enteredPin.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Please enter ID and PIN',
-          ),
-        ),
-      );
-      return;
-    }
+  // ==========================================================
+  // ADMIN LOGIN
+  // ==========================================================
 
-    // ========================================================
-    // ADMIN LOGIN
-    // ========================================================
+  if (!customer) {
+    final admins = {
+      'nikhilasc': '0521',
+      'kailashasc': '2105',
+    };
 
-    if (!customer) {
-      final validAdmin =
-          (enteredId == admin1Id &&
-                  enteredPin == admin1Pin) ||
-              (enteredId == admin2Id &&
-                  enteredPin == admin2Pin);
-
-      if (!validAdmin) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Invalid Admin ID or PIN',
-            ),
-          ),
-        );
-        return;
-      }
-
+    if (admins[enteredId] == enteredPin) {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => const HomePage(
-            customer: false,
-          ),
+          builder: (_) => const HomePage(customer: false),
         ),
       );
-
-      return;
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Invalid Admin ID or PIN'),
+        ),
+      );
     }
 
-    // ========================================================
-    // CUSTOMER LOGIN
-    // ========================================================
-    //
-    // Customer login will be connected to the
-    // customer accounts created by Admin.
-    //
-    // For now, do not allow random IDs/PINs to enter.
-    // ========================================================
+    return;
+  }
+
+  // ==========================================================
+  // CUSTOMER LOGIN — FIRESTORE
+  // ==========================================================
+
+  try {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('customers')
+        .where('customerId', isEqualTo: enteredId)
+        .where('pin', isEqualTo: enteredPin)
+        .limit(1)
+        .get();
+
+    if (!mounted) return;
+
+    if (snapshot.docs.isNotEmpty) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const HomePage(customer: true),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Invalid Customer ID or PIN'),
+        ),
+      );
+    }
+  } catch (e) {
+    if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Customer accounts will be available after an Admin creates them.',
-        ),
+      SnackBar(
+        content: Text('Customer login failed: $e'),
       ),
     );
+  }
   }
 
   @override
