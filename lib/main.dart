@@ -41,6 +41,88 @@ class AjantaApp extends StatelessWidget {
 // SAREE MODEL
 // ============================================================
 
+// ============================================================
+// CUSTOMER MODEL - FIRESTORE
+// ============================================================
+
+class Customer {
+  String id;
+  String name;
+  String pin;
+  String gstNumber;
+  double outstanding;
+
+  Customer({
+    required this.id,
+    required this.name,
+    required this.pin,
+    required this.gstNumber,
+    this.outstanding = 0,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'pin': pin,
+      'gstNumber': gstNumber,
+      'outstanding': outstanding,
+    };
+  }
+
+  factory Customer.fromMap(Map<String, dynamic> map) {
+    return Customer(
+      id: map['id']?.toString() ?? '',
+      name: map['name']?.toString() ?? '',
+      pin: map['pin']?.toString() ?? '',
+      gstNumber: map['gstNumber']?.toString() ?? '',
+      outstanding:
+          (map['outstanding'] as num?)?.toDouble() ?? 0,
+    );
+  }
+}
+
+// ============================================================
+// CUSTOMER FIRESTORE STORAGE
+// ============================================================
+
+class CustomerStorage {
+  static final _customers =
+      FirebaseFirestore.instance.collection('customers');
+
+  static Future<void> save(Customer customer) async {
+    await _customers.doc(customer.id).set(
+          customer.toMap(),
+        );
+  }
+
+  static Future<List<Customer>> load() async {
+    final snapshot = await _customers.get();
+
+    return snapshot.docs.map((doc) {
+      return Customer.fromMap(doc.data());
+    }).toList();
+  }
+
+  static Future<Customer?> findById(String id) async {
+    final doc = await _customers.doc(id).get();
+
+    if (!doc.exists || doc.data() == null) {
+      return null;
+    }
+
+    return Customer.fromMap(doc.data()!);
+  }
+
+  static Future<bool> idExists(String id) async {
+    final doc = await _customers.doc(id).get();
+    return doc.exists;
+  }
+
+  static Future<void> delete(String id) async {
+    await _customers.doc(id).delete();
+  }
+}
 class Saree {
   String id;
   String name;
