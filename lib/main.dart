@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -343,6 +344,242 @@ class _LoginPageState extends State<LoginPage> {
   final pinController = TextEditingController();
 
   bool customer = false;
+  bool loading = false;
+
+  // ----------------------------------------------------------
+  // ADMIN LOGIN
+  // Change these credentials after the first successful build.
+  // ----------------------------------------------------------
+
+  static const String adminId = 'ASCADMIN';
+  static const String adminPin = '2580';
+
+  Future<void> login() async {
+    final id = idController.text.trim();
+    final pin = pinController.text.trim();
+
+    if (id.isEmpty || pin.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter ID and PIN'),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      loading = true;
+    });
+
+    try {
+      if (!customer) {
+        // ADMIN LOGIN
+        if (id != adminId || pin != adminPin) {
+          throw Exception('Invalid Admin ID or PIN');
+        }
+
+        if (!mounted) return;
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const HomePage(
+              customer: false,
+              admin: true,
+            ),
+          ),
+        );
+      } else {
+        // CUSTOMER LOGIN
+        final snapshot = await FirebaseFirestore.instance
+            .collection('customers')
+            .where('customerId', isEqualTo: id)
+            .where('pin', isEqualTo: pin)
+            .limit(1)
+            .get();
+
+        if (snapshot.docs.isEmpty) {
+          throw Exception('Invalid Customer ID or PIN');
+        }
+
+        if (!mounted) return;
+
+        final customerData = snapshot.docs.first.data();
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => HomePage(
+              customer: true,
+              admin: false,
+              customerId:
+                  customerData['customerId']?.toString() ?? '',
+              customerName:
+                  customerData['name']?.toString() ?? '',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            !customer &&
+                    id == adminId &&
+                    pin != adminPin
+                ? 'Invalid Admin ID or PIN'
+                : customer
+                    ? 'Invalid Customer ID or PIN'
+                    : 'Invalid Admin credentials',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          loading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    idController.dispose();
+    pinController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              children: [
+                const Icon(
+                  Icons.storefront,
+                  size: 75,
+                ),
+
+                const SizedBox(height: 15),
+
+                const Text(
+                  'AJANTA SAREE CENTRE',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 25,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(height: 5),
+
+                const Text('Satna (M.P.)'),
+
+                const SizedBox(height: 30),
+
+                SegmentedButton<bool>(
+                  segments: const [
+                    ButtonSegment(
+                      value: false,
+                      label: Text('Admin'),
+                      icon: Icon(
+                        Icons.admin_panel_settings,
+                      ),
+                    ),
+                    ButtonSegment(
+                      value: true,
+                      label: Text('Customer'),
+                      icon: Icon(Icons.person),
+                    ),
+                  ],
+                  selected: {customer},
+                  onSelectionChanged: (value) {
+                    setState(() {
+                      customer = value.first;
+                      idController.clear();
+                      pinController.clear();
+                    });
+                  },
+                ),
+
+                const SizedBox(height: 20),
+
+                TextField(
+                  controller: idController,
+                  decoration: InputDecoration(
+                    labelText:
+                        customer ? 'Customer ID' : 'Admin ID',
+                    prefixIcon: const Icon(Icons.person),
+                  ),
+                  textCapitalization:
+                      TextCapitalization.characters,
+                ),
+
+                const SizedBox(height: 14),
+
+                TextField(
+                  controller: pinController,
+                  obscureText: true,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'PIN',
+                    prefixIcon: Icon(Icons.lock),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: FilledButton.icon(
+                    onPressed: loading ? null : login,
+                    icon: loading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child:
+                                CircularProgressIndicator(
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Icon(Icons.login),
+                    label: Text(
+                      loading ? 'PLEASE WAIT...' : 'LOGIN',
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 15),
+
+                const Text(
+                  'No OTP authentication',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// HOME
+// ============================================================
+
+class _LoginPageState extends State<LoginPage> {
+  final idController = TextEditingController();
+  final pinController = TextEditingController();
+
+  bool customer = false;
 
   void login() {
     if (idController.text.trim().isEmpty ||
@@ -393,75 +630,7 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
                 const SizedBox(height: 5),
-                const Text('Satna (M.P.)'),
-                const SizedBox(height: 30),
-                SegmentedButton<bool>(
-                  segments: const [
-                    ButtonSegment(
-                      value: false,
-                      label: Text('Admin'),
-                      icon:
-                          Icon(Icons.admin_panel_settings),
-                    ),
-                    ButtonSegment(
-                      value: true,
-                      label: Text('Customer'),
-                      icon: Icon(Icons.person),
-                    ),
-                  ],
-                  selected: {customer},
-                  onSelectionChanged: (value) {
-                    setState(() {
-                      customer = value.first;
-                    });
-                  },
-                ),
-                const SizedBox(height: 20),
-                TextField(
-                  controller: idController,
-                  decoration: InputDecoration(
-                    labelText:
-                        customer ? 'Customer ID' : 'Admin ID',
-                    prefixIcon: const Icon(Icons.person),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                TextField(
-                  controller: pinController,
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'PIN',
-                    prefixIcon: Icon(Icons.lock),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: FilledButton.icon(
-                    onPressed: login,
-                    icon: const Icon(Icons.login),
-                    label: const Text('LOGIN'),
-                  ),
-                ),
-                const SizedBox(height: 15),
-                const Text(
-                  'No OTP authentication',
-                  style: TextStyle(fontSize: 12),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ============================================================
-// HOME
-// ============================================================
-
+                const Text('Satna (M.P.)')
 class HomePage extends StatefulWidget {
   final bool customer;
 
@@ -479,8 +648,58 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final pages = [
-      DashboardPage(customer: widget.customer),
+    // ----------------------------------------------------------
+    // CUSTOMER MODE
+    // ----------------------------------------------------------
+    if (widget.customer) {
+      final customerPages = [
+        const DashboardPage(customer: true),
+        const SalesPage(),
+        const AccountsPage(),
+        const MorePage(),
+      ];
+
+      return Scaffold(
+        body: customerPages[selectedIndex],
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: selectedIndex,
+          onDestinationSelected: (index) {
+            setState(() {
+              selectedIndex = index;
+            });
+          },
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home),
+              label: 'Home',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.receipt_long_outlined),
+              selectedIcon: Icon(Icons.receipt_long),
+              label: 'Invoices',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.account_balance_wallet_outlined),
+              selectedIcon: Icon(Icons.account_balance_wallet),
+              label: 'Account',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.more_horiz),
+              selectedIcon: Icon(Icons.more),
+              label: 'More',
+            ),
+          ],
+        ),
+      );
+    }
+
+    // ----------------------------------------------------------
+    // ADMIN MODE
+    // ----------------------------------------------------------
+
+    final adminPages = [
+      const DashboardPage(customer: false),
       const SalesPage(),
       const InventoryPage(),
       const AccountsPage(),
@@ -488,7 +707,7 @@ class _HomePageState extends State<HomePage> {
     ];
 
     return Scaffold(
-      body: pages[selectedIndex],
+      body: adminPages[selectedIndex],
       bottomNavigationBar: NavigationBar(
         selectedIndex: selectedIndex,
         onDestinationSelected: (index) {
