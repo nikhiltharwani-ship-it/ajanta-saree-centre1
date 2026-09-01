@@ -2065,28 +2065,704 @@ class AccountsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Accounts'),
+        title: const Text(
+          'Accounts',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
       body: ListView(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         children: [
-          ListTile(
-            leading: Icon(Icons.people),
-            title: Text('Customers'),
+          Card(
+            child: ListTile(
+              leading: const CircleAvatar(
+                child: Icon(Icons.people),
+              ),
+              title: const Text(
+                'Customers',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              subtitle: const Text(
+                'Create and manage customer accounts',
+              ),
+              trailing: const Icon(
+                Icons.arrow_forward_ios,
+                size: 18,
+              ),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        const CustomerListPage(),
+                  ),
+                );
+              },
+            ),
           ),
-          ListTile(
-            leading: Icon(Icons.payments),
-            title: Text('Payments'),
+
+          const SizedBox(height: 8),
+
+          Card(
+            child: ListTile(
+              leading: const CircleAvatar(
+                child: Icon(Icons.payments),
+              ),
+              title: const Text('Payments'),
+              subtitle: const Text(
+                'Record customer payments',
+              ),
+              onTap: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Payments module will be added next.',
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
-          ListTile(
-            leading: Icon(Icons.account_balance_wallet),
-            title: Text('Customer Outstanding'),
+
+          const SizedBox(height: 8),
+
+          Card(
+            child: ListTile(
+              leading: const CircleAvatar(
+                child: Icon(
+                  Icons.account_balance_wallet,
+                ),
+              ),
+              title: const Text(
+                'Customer Outstanding',
+              ),
+              subtitle: const Text(
+                'View outstanding balances',
+              ),
+              onTap: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Outstanding module will be connected next.',
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
-          ListTile(
-            leading: Icon(Icons.store),
-            title: Text('Traders / Suppliers'),
+
+          const SizedBox(height: 8),
+
+          Card(
+            child: ListTile(
+              leading: const CircleAvatar(
+                child: Icon(Icons.store),
+              ),
+              title: const Text(
+                'Traders / Suppliers',
+              ),
+              subtitle: const Text(
+                'Manage supplier accounts',
+              ),
+              onTap: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Trader module will be added later.',
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ============================================================
+// CUSTOMER LIST
+// ============================================================
+
+class CustomerListPage extends StatefulWidget {
+  const CustomerListPage({super.key});
+
+  @override
+  State<CustomerListPage> createState() =>
+      _CustomerListPageState();
+}
+
+class _CustomerListPageState
+    extends State<CustomerListPage> {
+  List<Customer> customers = [];
+  bool loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    loadCustomers();
+  }
+
+  Future<void> loadCustomers() async {
+    try {
+      final data = await CustomerStorage.load();
+
+      if (!mounted) return;
+
+      setState(() {
+        customers = data;
+        loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        loading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Could not load customers: $e',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> createCustomer() async {
+    final result =
+        await Navigator.push<Customer>(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            const CreateCustomerPage(),
+      ),
+    );
+
+    if (result != null) {
+      await loadCustomers();
+    }
+  }
+
+  Future<void> deleteCustomer(
+    Customer customer,
+  ) async {
+    final confirm =
+        await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text(
+          'Delete Customer?',
+        ),
+        content: Text(
+          'Delete "${customer.name}"?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(
+              context,
+              false,
+            ),
+            child: const Text('CANCEL'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(
+              context,
+              true,
+            ),
+            child: const Text('DELETE'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await CustomerStorage.delete(
+        customer.id,
+      );
+
+      await loadCustomers();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Customer deleted.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Could not delete customer: $e',
+          ),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Customers',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+      body: loading
+          ? const Center(
+              child: CircularProgressIndicator(),
+            )
+          : customers.isEmpty
+              ? Center(
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.all(30),
+                    child: Column(
+                      mainAxisAlignment:
+                          MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.people_outline,
+                          size: 75,
+                        ),
+                        const SizedBox(
+                          height: 15,
+                        ),
+                        const Text(
+                          'No customers yet',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight:
+                                FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(
+                          height: 8,
+                        ),
+                        const Text(
+                          'Create the first customer account.',
+                          textAlign:
+                              TextAlign.center,
+                        ),
+                        const SizedBox(
+                          height: 20,
+                        ),
+                        FilledButton.icon(
+                          onPressed:
+                              createCustomer,
+                          icon: const Icon(
+                            Icons.person_add,
+                          ),
+                          label: const Text(
+                            'Create Customer',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: loadCustomers,
+                  child: ListView.builder(
+                    padding:
+                        const EdgeInsets.all(12),
+                    itemCount:
+                        customers.length,
+                    itemBuilder:
+                        (_, index) {
+                      final customer =
+                          customers[index];
+
+                      return Card(
+                        child: ListTile(
+                          leading:
+                              const CircleAvatar(
+                            child: Icon(
+                              Icons.person,
+                            ),
+                          ),
+                          title: Text(
+                            customer.name,
+                            style:
+                                const TextStyle(
+                              fontWeight:
+                                  FontWeight.bold,
+                            ),
+                          ),
+                          subtitle: Text(
+                            'ID: ${customer.id}'
+                            '${customer.gstNumber.isEmpty ? '' : '\nGST: ${customer.gstNumber}'}'
+                            '\nOutstanding: ₹${_formatNumber(customer.outstanding)}',
+                          ),
+                          isThreeLine:
+                              true,
+                          trailing:
+                              PopupMenuButton<String>(
+                            onSelected:
+                                (value) {
+                              if (value ==
+                                  'delete') {
+                                deleteCustomer(
+                                  customer,
+                                );
+                              }
+                            },
+                            itemBuilder:
+                                (_) => const [
+                              PopupMenuItem(
+                                value:
+                                    'delete',
+                                child: Text(
+                                  'Delete',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+      floatingActionButton:
+          FloatingActionButton.extended(
+        onPressed: createCustomer,
+        icon: const Icon(
+          Icons.person_add,
+        ),
+        label: const Text(
+          'Create Customer',
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// CREATE CUSTOMER
+// ============================================================
+
+class CreateCustomerPage
+    extends StatefulWidget {
+  const CreateCustomerPage({
+    super.key,
+  });
+
+  @override
+  State<CreateCustomerPage> createState() =>
+      _CreateCustomerPageState();
+}
+
+class _CreateCustomerPageState
+    extends State<CreateCustomerPage> {
+  final nameController =
+      TextEditingController();
+
+  final idController =
+      TextEditingController();
+
+  final pinController =
+      TextEditingController();
+
+  final gstController =
+      TextEditingController();
+
+  bool saving = false;
+
+  Future<void> saveCustomer() async {
+    final name =
+        nameController.text.trim();
+
+    final id =
+        idController.text.trim();
+
+    final pin =
+        pinController.text.trim();
+
+    final gst =
+        gstController.text.trim();
+
+    if (name.isEmpty) {
+      showMessage(
+        'Customer name is required.',
+      );
+      return;
+    }
+
+    if (id.isEmpty) {
+      showMessage(
+        'Customer ID is required.',
+      );
+      return;
+    }
+
+    if (pin.isEmpty) {
+      showMessage(
+        'Customer PIN is required.',
+      );
+      return;
+    }
+
+    if (pin.length < 4) {
+      showMessage(
+        'Customer PIN must contain at least 4 digits.',
+      );
+      return;
+    }
+
+    setState(() {
+      saving = true;
+    });
+
+    try {
+      final cleanId =
+          id.toLowerCase();
+
+      final exists =
+          await CustomerStorage.idExists(
+        cleanId,
+      );
+
+      if (exists) {
+        if (!mounted) return;
+
+        setState(() {
+          saving = false;
+        });
+
+        showMessage(
+          'This Customer ID already exists. Please choose another.',
+        );
+
+        return;
+      }
+
+      final customer = Customer(
+        id: cleanId,
+        name: name,
+        pin: pin,
+        gstNumber: gst,
+        outstanding: 0,
+      );
+
+      await CustomerStorage.save(
+        customer,
+      );
+
+      if (!mounted) return;
+
+      Navigator.pop(
+        context,
+        customer,
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        saving = false;
+      });
+
+      showMessage(
+        'Could not create customer: $e',
+      );
+    }
+  }
+
+  void showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    idController.dispose();
+    pinController.dispose();
+    gstController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Create Customer',
+        ),
+      ),
+      body: SafeArea(
+        child: ListView(
+          padding:
+              const EdgeInsets.all(16),
+          children: [
+            const Card(
+              child: Padding(
+                padding:
+                    EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.person_add,
+                      size: 35,
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Create a unique customer login',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight:
+                              FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            TextField(
+              controller:
+                  nameController,
+              textCapitalization:
+                  TextCapitalization.words,
+              decoration:
+                  const InputDecoration(
+                labelText:
+                    'Customer Name *',
+                prefixIcon:
+                    Icon(Icons.person),
+              ),
+            ),
+
+            const SizedBox(height: 14),
+
+            TextField(
+              controller:
+                  idController,
+              textCapitalization:
+                  TextCapitalization.none,
+              decoration:
+                  const InputDecoration(
+                labelText:
+                    'Customer ID *',
+                hintText:
+                    'Example: cust001',
+                prefixIcon:
+                    Icon(Icons.badge),
+              ),
+            ),
+
+            const SizedBox(height: 14),
+
+            TextField(
+              controller:
+                  pinController,
+              keyboardType:
+                  TextInputType.number,
+              obscureText: true,
+              decoration:
+                  const InputDecoration(
+                labelText:
+                    'Customer PIN *',
+                hintText:
+                    'Minimum 4 digits',
+                prefixIcon:
+                    Icon(Icons.lock),
+              ),
+            ),
+
+            const SizedBox(height: 14),
+
+            TextField(
+              controller:
+                  gstController,
+              textCapitalization:
+                  TextCapitalization.characters,
+              decoration:
+                  const InputDecoration(
+                labelText:
+                    'GST Number (Optional)',
+                hintText:
+                    'Leave blank if not applicable',
+                prefixIcon:
+                    Icon(Icons.receipt_long),
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            const Text(
+              '* Required fields',
+              style: TextStyle(
+                fontSize: 12,
+              ),
+            ),
+
+            const SizedBox(height: 25),
+
+            SizedBox(
+              height: 52,
+              child: FilledButton.icon(
+                onPressed: saving
+                    ? null
+                    : saveCustomer,
+                icon: saving
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child:
+                            CircularProgressIndicator(
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.save,
+                      ),
+                label: Text(
+                  saving
+                      ? 'SAVING...'
+                      : 'CREATE CUSTOMER',
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            const Card(
+              child: Padding(
+                padding:
+                    EdgeInsets.all(14),
+                child: Text(
+                  'The Customer ID must be unique. '
+                  'The GST number is optional and can be left blank.',
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
