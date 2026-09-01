@@ -339,6 +339,21 @@ class LoginPage extends StatefulWidget {
   State<LoginPage> createState() => _LoginPageState();
 }
 
+// ============================================================
+// ADMIN LOGIN CREDENTIALS
+// EDIT THESE VALUES IN FUTURE IF REQUIRED
+// ============================================================
+
+const String admin1Id = 'nikhilasc';
+const String admin1Pin = '0521';
+
+const String admin2Id = 'kailashasc';
+const String admin2Pin = '2105';
+
+// ============================================================
+// LOGIN STATE
+// ============================================================
+
 class _LoginPageState extends State<LoginPage> {
   final idController = TextEditingController();
   final pinController = TextEditingController();
@@ -346,20 +361,73 @@ class _LoginPageState extends State<LoginPage> {
   bool customer = false;
 
   void login() {
-    if (idController.text.trim().isEmpty ||
-        pinController.text.trim().isEmpty) {
+    final enteredId =
+        idController.text.trim();
+
+    final enteredPin =
+        pinController.text.trim();
+
+    if (enteredId.isEmpty ||
+        enteredPin.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please enter ID and PIN'),
+          content: Text(
+            'Please enter ID and PIN',
+          ),
         ),
       );
       return;
     }
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => HomePage(customer: customer),
+    // ========================================================
+    // ADMIN LOGIN
+    // ========================================================
+
+    if (!customer) {
+      final validAdmin =
+          (enteredId == admin1Id &&
+                  enteredPin == admin1Pin) ||
+              (enteredId == admin2Id &&
+                  enteredPin == admin2Pin);
+
+      if (!validAdmin) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Invalid Admin ID or PIN',
+            ),
+          ),
+        );
+        return;
+      }
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const HomePage(
+            customer: false,
+          ),
+        ),
+      );
+
+      return;
+    }
+
+    // ========================================================
+    // CUSTOMER LOGIN
+    // ========================================================
+    //
+    // Customer login will be connected to the
+    // customer accounts created by Admin.
+    //
+    // For now, do not allow random IDs/PINs to enter.
+    // ========================================================
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Customer accounts will be available after an Admin creates them.',
+        ),
       ),
     );
   }
@@ -384,7 +452,9 @@ class _LoginPageState extends State<LoginPage> {
                   Icons.storefront,
                   size: 75,
                 ),
+
                 const SizedBox(height: 15),
+
                 const Text(
                   'AJANTA SAREE CENTRE',
                   textAlign: TextAlign.center,
@@ -393,29 +463,38 @@ class _LoginPageState extends State<LoginPage> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
+
                 const SizedBox(height: 5),
-                const Text('Satna (M.P.)'),
+
+                const Text(
+                  'Satna (M.P.)',
+                ),
+
                 const SizedBox(height: 30),
 
                 SegmentedButton<bool>(
                   segments: const [
-                    ButtonSegment(
+                    ButtonSegment<bool>(
                       value: false,
                       label: Text('Admin'),
                       icon: Icon(
                         Icons.admin_panel_settings,
                       ),
                     ),
-                    ButtonSegment(
+                    ButtonSegment<bool>(
                       value: true,
                       label: Text('Customer'),
-                      icon: Icon(Icons.person),
+                      icon: Icon(
+                        Icons.person,
+                      ),
                     ),
                   ],
                   selected: {customer},
                   onSelectionChanged: (value) {
                     setState(() {
                       customer = value.first;
+                      idController.clear();
+                      pinController.clear();
                     });
                   },
                 ),
@@ -425,9 +504,12 @@ class _LoginPageState extends State<LoginPage> {
                 TextField(
                   controller: idController,
                   decoration: InputDecoration(
-                    labelText:
-                        customer ? 'Customer ID' : 'Admin ID',
-                    prefixIcon: const Icon(Icons.person),
+                    labelText: customer
+                        ? 'Customer ID'
+                        : 'Admin ID',
+                    prefixIcon: const Icon(
+                      Icons.person,
+                    ),
                   ),
                 ),
 
@@ -436,9 +518,12 @@ class _LoginPageState extends State<LoginPage> {
                 TextField(
                   controller: pinController,
                   obscureText: true,
+                  keyboardType: TextInputType.number,
                   decoration: const InputDecoration(
                     labelText: 'PIN',
-                    prefixIcon: Icon(Icons.lock),
+                    prefixIcon: Icon(
+                      Icons.lock,
+                    ),
                   ),
                 ),
 
@@ -449,8 +534,12 @@ class _LoginPageState extends State<LoginPage> {
                   height: 50,
                   child: FilledButton.icon(
                     onPressed: login,
-                    icon: const Icon(Icons.login),
-                    label: const Text('LOGIN'),
+                    icon: const Icon(
+                      Icons.login,
+                    ),
+                    label: const Text(
+                      'LOGIN',
+                    ),
                   ),
                 ),
 
@@ -458,7 +547,9 @@ class _LoginPageState extends State<LoginPage> {
 
                 const Text(
                   'No OTP authentication',
-                  style: TextStyle(fontSize: 12),
+                  style: TextStyle(
+                    fontSize: 12,
+                  ),
                 ),
               ],
             ),
