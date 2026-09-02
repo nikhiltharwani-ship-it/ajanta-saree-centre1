@@ -978,11 +978,14 @@ class _LoginPageState extends State<LoginPage> {
 
     if (snapshot.docs.isNotEmpty) {
       Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const HomePage(customer: true),
-        ),
-      );
+  context,
+  MaterialPageRoute(
+    builder: (_) => HomePage(
+      customer: true,
+      customerId: enteredId,
+    ),
+  ),
+);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
