@@ -1433,7 +1433,10 @@ class _CreateInvoicePageState
   final paidController = TextEditingController();
 
   List<Saree> sarees = [];
-  List<InvoiceItem> items = [];
+List<InvoiceItem> items = [];
+List<Customer> customers = [];
+
+Customer? selectedCustomer;
 
   String invoiceNumber = '';
   bool loading = true;
@@ -1475,16 +1478,18 @@ class _CreateInvoicePageState
   }
 
   Future<void> initialize() async {
-    final inventory = await InventoryStorage.load();
-    final number = await InvoiceStorage.nextInvoiceNumber();
+  final inventory = await InventoryStorage.load();
+  final customerList = await CustomerStorage.load();
+  final number = await InvoiceStorage.nextInvoiceNumber();
 
-    if (!mounted) return;
+  if (!mounted) return;
 
-    setState(() {
-      sarees = inventory;
-      invoiceNumber = number;
-      loading = false;
-    });
+  setState(() {
+    sarees = inventory;
+    customers = customerList;
+    invoiceNumber = number;
+    loading = false;
+  });
   }
 
   Future<void> addItem() async {
@@ -1522,6 +1527,16 @@ class _CreateInvoicePageState
   }
 
   Future<void> saveInvoice() async {
+    if (selectedCustomer == null) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text(
+        'Please select a customer.',
+      ),
+    ),
+  );
+  return;
+    }
     if (items.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -1536,9 +1551,9 @@ class _CreateInvoicePageState
 final invoice = Invoice(
   number: invoiceNumber,
   date: DateTime.now(),
-  customerId: '',
+  customerId: selectedCustomer?.id ?? '',
   customerName:
-      customerController.text.trim(),
+      selectedCustomer?.name ?? '',
       items: items,
       subtotal: subtotal,
       gst: gst,
@@ -1603,13 +1618,27 @@ final invoice = Invoice(
 
             const SizedBox(height: 12),
 
-            TextField(
-              controller: customerController,
-              decoration: const InputDecoration(
-                labelText: 'Customer Name',
-                prefixIcon: Icon(Icons.person),
-              ),
-            ),
+            DropdownButtonFormField<Customer>(
+  value: selectedCustomer,
+  decoration: const InputDecoration(
+    labelText: 'Customer',
+    prefixIcon: Icon(Icons.person),
+    border: OutlineInputBorder(),
+  ),
+  items: customers.map((customer) {
+    return DropdownMenuItem<Customer>(
+      value: customer,
+      child: Text(
+        '${customer.name} (${customer.id})',
+      ),
+    );
+  }).toList(),
+  onChanged: (customer) {
+    setState(() {
+      selectedCustomer = customer;
+    });
+  },
+),
 
             const SizedBox(height: 20),
 
