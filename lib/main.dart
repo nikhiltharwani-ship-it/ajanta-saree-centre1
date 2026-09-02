@@ -755,6 +755,7 @@ class InvoiceItem {
 class Invoice {
   String number;
   DateTime date;
+  String customerId;
   String customerName;
   List<InvoiceItem> items;
   double subtotal;
@@ -766,6 +767,7 @@ class Invoice {
   Invoice({
     required this.number,
     required this.date,
+    required this.customerId,
     required this.customerName,
     required this.items,
     required this.subtotal,
@@ -779,6 +781,7 @@ class Invoice {
     return {
       'number': number,
       'date': date.toIso8601String(),
+      'customerId': customerId,
       'customerName': customerName,
       'items': items.map((e) => e.toJson()).toList(),
       'subtotal': subtotal,
@@ -828,13 +831,15 @@ class InvoiceStorage {
             .toList();
 
         return Invoice(
-          number: map['number']?.toString() ?? '',
-          date: DateTime.tryParse(
-                map['date']?.toString() ?? '',
-              ) ??
-              DateTime.now(),
-          customerName:
-              map['customerName']?.toString() ?? '',
+  number: map['number']?.toString() ?? '',
+  date: DateTime.tryParse(
+        map['date']?.toString() ?? '',
+      ) ??
+      DateTime.now(),
+  customerId:
+      map['customerId']?.toString() ?? '',
+  customerName:
+      map['customerName']?.toString() ?? '',
           items: items,
           subtotal:
               (map['subtotal'] as num?)?.toDouble() ?? 0,
