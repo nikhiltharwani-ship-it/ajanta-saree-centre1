@@ -184,6 +184,419 @@ class CustomerStorage {
     await _customers.doc(id).delete();
   }
 }
+
+// ============================================================
+// CUSTOMER LIST PAGE
+// ============================================================
+
+class CustomerListPage extends StatefulWidget {
+  const CustomerListPage({super.key});
+
+  @override
+  State<CustomerListPage> createState() => _CustomerListPageState();
+}
+
+class _CustomerListPageState extends State<CustomerListPage> {
+  List<Customer> customers = [];
+  bool loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    loadCustomers();
+  }
+
+  Future<void> loadCustomers() async {
+    setState(() {
+      loading = true;
+    });
+
+    try {
+      final data = await CustomerStorage.load();
+
+      if (!mounted) return;
+
+      setState(() {
+        customers = data;
+        loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        loading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to load customers: $e'),
+        ),
+      );
+    }
+  }
+
+  Future<void> openCustomer([Customer? customer]) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CustomerEditPage(
+          customer: customer,
+        ),
+      ),
+    );
+
+    loadCustomers();
+  }
+
+  Future<void> deleteCustomer(Customer customer) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Delete Customer?'),
+          content: Text(
+            'Delete ${customer.name} (${customer.id})?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context, false);
+              },
+              child: const Text('CANCEL'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context, true);
+              },
+              child: const Text('DELETE'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await CustomerStorage.delete(customer.id);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Customer deleted'),
+        ),
+      );
+
+      loadCustomers();
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Delete failed: $e'),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Customers'),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => openCustomer(),
+        child: const Icon(Icons.add),
+      ),
+      body: loading
+          ? const Center(
+              child: CircularProgressIndicator(),
+            )
+          : customers.isEmpty
+              ? const Center(
+                  child: Text(
+                    'No customers found',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: loadCustomers,
+                  child: ListView.builder(
+                    itemCount: customers.length,
+                    itemBuilder: (context, index) {
+                      final customer = customers[index];
+
+                      return ListTile(
+                        leading: const CircleAvatar(
+                          child: Icon(Icons.person),
+                        ),
+                        title: Text(customer.name),
+                        subtitle: Text(
+                          'ID: ${customer.id}'
+                          '${customer.gstNumber.isNotEmpty ? '\nGST: ${customer.gstNumber}' : ''}',
+                        ),
+                        isThreeLine:
+                            customer.gstNumber.isNotEmpty,
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit),
+                              onPressed: () =>
+                                  openCustomer(customer),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete),
+                              onPressed: () =>
+                                  deleteCustomer(customer),
+                            ),
+                          ],
+                        ),
+                        onTap: () =>
+                            openCustomer(customer),
+                      );
+                    },
+                  ),
+                ),
+    );
+  }
+}
+
+
+// ============================================================
+// CUSTOMER EDIT / CREATE PAGE
+// ============================================================
+
+class CustomerEditPage extends StatefulWidget {
+  final Customer? customer;
+
+  const CustomerEditPage({
+    super.key,
+    this.customer,
+  });
+
+  @override
+  State<CustomerEditPage> createState() =>
+      _CustomerEditPageState();
+}
+
+class _CustomerEditPageState
+    extends State<CustomerEditPage> {
+  late TextEditingController nameController;
+  late TextEditingController idController;
+  late TextEditingController pinController;
+  late TextEditingController gstController;
+
+  bool saving = false;
+
+  bool get isEditing => widget.customer != null;
+
+  @override
+  void initState() {
+    super.initState();
+
+    nameController = TextEditingController(
+      text: widget.customer?.name ?? '',
+    );
+
+    idController = TextEditingController(
+      text: widget.customer?.id ?? '',
+    );
+
+    pinController = TextEditingController(
+      text: widget.customer?.pin ?? '',
+    );
+
+    gstController = TextEditingController(
+      text: widget.customer?.gstNumber ?? '',
+    );
+  }
+
+  Future<void> saveCustomer() async {
+    final name = nameController.text.trim();
+    final id = idController.text.trim();
+    final pin = pinController.text.trim();
+    final gst = gstController.text.trim();
+
+    if (name.isEmpty || id.isEmpty || pin.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Name, Customer ID and PIN are required',
+          ),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      saving = true;
+    });
+
+    try {
+      if (isEditing) {
+        final updatedCustomer = Customer(
+          id: id,
+          name: name,
+          pin: pin,
+          gstNumber: gst,
+          outstanding:
+              widget.customer!.outstanding,
+        );
+
+        await CustomerStorage.updateCustomer(
+          oldId: widget.customer!.id,
+          customer: updatedCustomer,
+        );
+      } else {
+        final exists =
+            await CustomerStorage.idExists(id);
+
+        if (exists) {
+          throw Exception(
+            'Customer ID "$id" already exists.',
+          );
+        }
+
+        final newCustomer = Customer(
+          id: id,
+          name: name,
+          pin: pin,
+          gstNumber: gst,
+        );
+
+        await CustomerStorage.save(newCustomer);
+      }
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isEditing
+                ? 'Customer updated successfully'
+                : 'Customer created successfully',
+          ),
+        ),
+      );
+
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        saving = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().replaceFirst(
+              'Exception: ',
+              '',
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    idController.dispose();
+    pinController.dispose();
+    gstController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          isEditing
+              ? 'Edit Customer'
+              : 'Create Customer',
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(
+                labelText: 'Customer Name *',
+                border: OutlineInputBorder(),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            TextField(
+              controller: idController,
+              decoration: const InputDecoration(
+                labelText: 'Customer ID *',
+                border: OutlineInputBorder(),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            TextField(
+              controller: pinController,
+              keyboardType: TextInputType.number,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'PIN *',
+                border: OutlineInputBorder(),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            TextField(
+              controller: gstController,
+              decoration: const InputDecoration(
+                labelText: 'GST Number (Optional)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: saving
+                    ? null
+                    : saveCustomer,
+                child: saving
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child:
+                            CircularProgressIndicator(
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : Text(
+                        isEditing
+                            ? 'UPDATE CUSTOMER'
+                            : 'CREATE CUSTOMER',
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 class Saree {
   String id;
   String name;
