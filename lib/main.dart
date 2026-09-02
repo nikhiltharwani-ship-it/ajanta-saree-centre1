@@ -1138,10 +1138,12 @@ class _LoginPageState extends State<LoginPage> {
 
 class HomePage extends StatefulWidget {
   final bool customer;
+  final String? customerId;
 
   const HomePage({
     super.key,
     required this.customer,
+    this.customerId,
   });
 
   @override
@@ -1153,8 +1155,16 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    // CUSTOMER APP
+    if (widget.customer) {
+      return CustomerPortalPage(
+        customerId: widget.customerId ?? '',
+      );
+    }
+
+    // ADMIN APP
     final pages = [
-      DashboardPage(customer: widget.customer),
+      DashboardPage(customer: false),
       const SalesPage(),
       const InventoryPage(),
       const AccountsPage(),
@@ -1201,6 +1211,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 }
+
 // ============================================================
 // DASHBOARD
 // ============================================================
