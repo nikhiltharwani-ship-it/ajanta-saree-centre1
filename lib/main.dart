@@ -1135,7 +1135,417 @@ class _LoginPageState extends State<LoginPage> {
 // ============================================================
 // HOME
 // ============================================================
+// ============================================================
+// CUSTOMER PORTAL
+// ============================================================
 
+class CustomerPortalPage extends StatefulWidget {
+  final String customerId;
+
+  const CustomerPortalPage({
+    super.key,
+    required this.customerId,
+  });
+
+  @override
+  State<CustomerPortalPage> createState() =>
+      _CustomerPortalPageState();
+}
+
+class _CustomerPortalPageState
+    extends State<CustomerPortalPage> {
+  Customer? customer;
+  List<Invoice> invoices = [];
+  bool loading = true;
+
+  double get totalPaid {
+    return invoices.fold(
+      0,
+      (sum, invoice) => sum + invoice.paid,
+    );
+  }
+
+  double get totalOutstanding {
+    return invoices.fold(
+      0,
+      (sum, invoice) => sum + invoice.outstanding,
+    );
+  }
+
+  Future<void> loadData() async {
+    try {
+      final loadedCustomer =
+          await CustomerStorage.findById(widget.customerId);
+
+      final allInvoices =
+          await InvoiceStorage.load();
+
+      final customerInvoices = allInvoices
+          .where(
+            (invoice) =>
+                invoice.customerId.trim() ==
+                widget.customerId.trim(),
+          )
+          .toList();
+
+      customerInvoices.sort(
+        (a, b) => b.date.compareTo(a.date),
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        customer = loadedCustomer;
+        invoices = customerInvoices;
+        loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        loading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Unable to load customer data: $e',
+          ),
+        ),
+      );
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    loadData();
+  }
+
+  void logout() {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const LoginPage(),
+      ),
+      (route) => false,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Customer Portal'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Logout',
+            onPressed: logout,
+          ),
+        ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: loadData,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            // CUSTOMER PROFILE
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Welcome',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      customer?.name ?? 'Customer',
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Customer ID: ${widget.customerId}',
+                    ),
+                    if ((customer?.gstNumber ?? '')
+                        .trim()
+                        .isNotEmpty)
+                      Text(
+                        'GST: ${customer!.gstNumber}',
+                      ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // SUMMARY
+            Row(
+              children: [
+                Expanded(
+                  child: Card(
+                    child: Padding(
+                      padding:
+                          const EdgeInsets.all(16),
+                      child: Column(
+                        children: [
+                          const Icon(
+                            Icons.payments_outlined,
+                            size: 30,
+                          ),
+                          const SizedBox(height: 8),
+                          const Text('Paid'),
+                          const SizedBox(height: 4),
+                          Text(
+                            '₹${totalPaid.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              fontWeight:
+                                  FontWeight.bold,
+                              fontSize: 17,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Card(
+                    child: Padding(
+                      padding:
+                          const EdgeInsets.all(16),
+                      child: Column(
+                        children: [
+                          const Icon(
+                            Icons.account_balance_wallet_outlined,
+                            size: 30,
+                          ),
+                          const SizedBox(height: 8),
+                          const Text('Outstanding'),
+                          const SizedBox(height: 4),
+                          Text(
+                            '₹${totalOutstanding.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              fontWeight:
+                                  FontWeight.bold,
+                              fontSize: 17,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 20),
+
+            const Text(
+              'My Invoices',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            if (invoices.isEmpty)
+              const Card(
+                child: Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Center(
+                    child: Text(
+                      'No invoices found.',
+                    ),
+                  ),
+                ),
+              ),
+
+            ...invoices.map(
+              (invoice) {
+                return Card(
+                  child: ListTile(
+                    leading: const CircleAvatar(
+                      child: Icon(
+                        Icons.receipt_long,
+                      ),
+                    ),
+                    title: Text(
+                      invoice.number,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    subtitle: Text(
+                      '${invoice.date.day.toString().padLeft(2, '0')}/'
+                      '${invoice.date.month.toString().padLeft(2, '0')}/'
+                      '${invoice.date.year}\n'
+                      'Paid: ₹${invoice.paid.toStringAsFixed(2)}  •  '
+                      'Due: ₹${invoice.outstanding.toStringAsFixed(2)}',
+                    ),
+                    isThreeLine: true,
+                    trailing: Text(
+                      '₹${invoice.grandTotal.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    onTap: () {
+                      showDialog(
+                        context: context,
+                        builder: (_) {
+                          return AlertDialog(
+                            title: Text(
+                              'Invoice ${invoice.number}',
+                            ),
+                            content: SingleChildScrollView(
+                              child: Column(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Total: ₹${invoice.grandTotal.toStringAsFixed(2)}',
+                                  ),
+                                  Text(
+                                    'Paid: ₹${invoice.paid.toStringAsFixed(2)}',
+                                  ),
+                                  Text(
+                                    'Outstanding: ₹${invoice.outstanding.toStringAsFixed(2)}',
+                                  ),
+                                  const Divider(),
+                                  ...invoice.items.map(
+                                    (item) {
+                                      return Padding(
+                                        padding:
+                                            const EdgeInsets
+                                                .symmetric(
+                                          vertical: 4,
+                                        ),
+                                        child: Text(
+                                          '${item.sareeName}  '
+                                          '× ${item.quantity}  '
+                                          '₹${item.total.toStringAsFixed(2)}',
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.pop(
+                                    context,
+                                  );
+                                },
+                                child:
+                                    const Text('Close'),
+                              ),
+                            ],
+                          );
+                        },
+                      );
+                    },
+                  ),
+                );
+              },
+            ),
+
+            const SizedBox(height: 20),
+
+            // PROFILE
+            Card(
+              child: ListTile(
+                leading: const Icon(
+                  Icons.person_outline,
+                ),
+                title: const Text('My Profile'),
+                subtitle: Text(
+                  'ID: ${widget.customerId}',
+                ),
+                trailing: const Icon(
+                  Icons.chevron_right,
+                ),
+                onTap: () {
+                  showDialog(
+                    context: context,
+                    builder: (_) {
+                      return AlertDialog(
+                        title:
+                            const Text('My Profile'),
+                        content: Column(
+                          mainAxisSize:
+                              MainAxisSize.min,
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Name: ${customer?.name ?? ''}',
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Customer ID: ${customer?.id ?? widget.customerId}',
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'GST: ${customer?.gstNumber ?? 'Not provided'}',
+                            ),
+                          ],
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () {
+                              Navigator.pop(
+                                context,
+                              );
+                            },
+                            child:
+                                const Text('Close'),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            OutlinedButton.icon(
+              onPressed: logout,
+              icon: const Icon(Icons.logout),
+              label: const Text('Logout'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 class HomePage extends StatefulWidget {
   final bool customer;
   final String? customerId;
