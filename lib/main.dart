@@ -90,11 +90,19 @@ class CustomerStorage {
   static final _customers =
       FirebaseFirestore.instance.collection('customers');
 
+  // ==========================================================
+  // CREATE CUSTOMER
+  // ==========================================================
+
   static Future<void> save(Customer customer) async {
     await _customers.doc(customer.id).set(
           customer.toMap(),
         );
   }
+
+  // ==========================================================
+  // LOAD ALL CUSTOMERS
+  // ==========================================================
 
   static Future<List<Customer>> load() async {
     final snapshot = await _customers.get();
@@ -103,6 +111,10 @@ class CustomerStorage {
       return Customer.fromMap(doc.data());
     }).toList();
   }
+
+  // ==========================================================
+  // FIND CUSTOMER BY ID
+  // ==========================================================
 
   static Future<Customer?> findById(String id) async {
     final doc = await _customers.doc(id).get();
@@ -114,10 +126,59 @@ class CustomerStorage {
     return Customer.fromMap(doc.data()!);
   }
 
+  // ==========================================================
+  // CHECK WHETHER CUSTOMER ID ALREADY EXISTS
+  // ==========================================================
+
   static Future<bool> idExists(String id) async {
     final doc = await _customers.doc(id).get();
     return doc.exists;
   }
+
+  // ==========================================================
+  // UPDATE CUSTOMER
+  // Supports changing:
+  // Name
+  // Customer ID
+  // PIN
+  // GST Number
+  // ==========================================================
+
+  static Future<void> updateCustomer({
+    required String oldId,
+    required Customer customer,
+  }) async {
+    final newId = customer.id.trim();
+
+    // ID has not changed
+    if (oldId == newId) {
+      await _customers.doc(oldId).set(
+            customer.toMap(),
+          );
+      return;
+    }
+
+    // New ID must be unique
+    final newIdExists = await idExists(newId);
+
+    if (newIdExists) {
+      throw Exception(
+        'Customer ID "$newId" already exists.',
+      );
+    }
+
+    // Create the customer under the new ID
+    await _customers.doc(newId).set(
+          customer.toMap(),
+        );
+
+    // Remove the old document
+    await _customers.doc(oldId).delete();
+  }
+
+  // ==========================================================
+  // DELETE CUSTOMER
+  // ==========================================================
 
   static Future<void> delete(String id) async {
     await _customers.doc(id).delete();
@@ -489,11 +550,11 @@ class _LoginPageState extends State<LoginPage> {
 
   try {
     final snapshot = await FirebaseFirestore.instance
-        .collection('customers')
-        .where('customerId', isEqualTo: enteredId)
-        .where('pin', isEqualTo: enteredPin)
-        .limit(1)
-        .get();
+    .collection('customers')
+    .where('id', isEqualTo: enteredId)
+    .where('pin', isEqualTo: enteredPin)
+    .limit(1)
+    .get();
 
     if (!mounted) return;
 
