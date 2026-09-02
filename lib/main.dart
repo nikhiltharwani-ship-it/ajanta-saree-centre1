@@ -1533,11 +1533,12 @@ class _CreateInvoicePageState
       return;
     }
 
-    final invoice = Invoice(
-      number: invoiceNumber,
-      date: DateTime.now(),
-      customerName:
-          customerController.text.trim(),
+final invoice = Invoice(
+  number: invoiceNumber,
+  date: DateTime.now(),
+  customerId: '',
+  customerName:
+      customerController.text.trim(),
       items: items,
       subtotal: subtotal,
       gst: gst,
