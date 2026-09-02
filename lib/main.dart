@@ -1483,15 +1483,21 @@ class _CreateInvoicePageState
   }
 
   Future<void> addItem() async {
-    if (sarees.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Please add sarees to Inventory first.',
-          ),
-        ),
-      );
-      return;
+    Future<void> addItem() async {
+  final result =
+      await showModalBottomSheet<InvoiceItem>(
+    context: context,
+    isScrollControlled: true,
+    builder: (_) => AddInvoiceItemSheet(
+      sarees: sarees,
+    ),
+  );
+
+  if (result != null) {
+    setState(() {
+      items.add(result);
+    });
+  }
     }
 
     final result =
@@ -1784,7 +1790,7 @@ class _CreateInvoicePageState
 }
 
 // ============================================================
-// ADD INVOICE ITEM
+// ADD INVOICE ITEM SHEET
 // ============================================================
 
 class AddInvoiceItemSheet extends StatefulWidget {
@@ -1804,59 +1810,75 @@ class _AddInvoiceItemSheetState
     extends State<AddInvoiceItemSheet> {
   Saree? selectedSaree;
 
+  final nameController = TextEditingController();
   final quantityController =
       TextEditingController(text: '1');
+  final priceController = TextEditingController();
+  final priceCodeController = TextEditingController();
 
-  final priceCodeController =
-      TextEditingController();
+  // 0 = Existing Saree
+  // 1 = Manual Item
+  // 2 = Goods Return
+  int itemType = 0;
+
+  // Existing saree pricing:
+  // A / B / C / Manual
+  String priceMode = 'A';
 
   double selectedPrice = 0;
 
   String? error;
 
-  void updatePrice() {
-    final code =
-        priceCodeController.text.trim().toUpperCase();
+  // ==========================================================
+  // UPDATE AUTOMATIC PRICE
+  // ==========================================================
 
-    if (selectedSaree != null &&
-        (code == 'A' ||
-            code == 'B' ||
-            code == 'C')) {
+  void updatePrice() {
+    if (selectedSaree == null) {
+      setState(() {
+        selectedPrice = 0;
+      });
+      return;
+    }
+
+    if (priceMode == 'Manual') {
+      final manualPrice = double.tryParse(
+            priceController.text
+                .replaceAll(',', '')
+                .trim(),
+          ) ??
+          0;
+
+      setState(() {
+        selectedPrice = manualPrice;
+        error = null;
+      });
+
+      return;
+    }
+
+    final code = priceMode;
+
+    if (code == 'A' ||
+        code == 'B' ||
+        code == 'C') {
       setState(() {
         selectedPrice =
             selectedSaree!.getPrice(code);
         error = null;
       });
-    } else {
-      setState(() {
-        selectedPrice = 0;
-      });
     }
   }
 
+  // ==========================================================
+  // SAVE ITEM
+  // ==========================================================
+
   void save() {
-    if (selectedSaree == null) {
-      setState(() {
-        error = 'Please select a saree.';
-      });
-      return;
-    }
-
-    final code =
-        priceCodeController.text.trim().toUpperCase();
-
-    if (code != 'A' &&
-        code != 'B' &&
-        code != 'C') {
-      setState(() {
-        error =
-            'Enter A, B or C as the price code.';
-      });
-      return;
-    }
-
     final quantity = double.tryParse(
-          quantityController.text.trim(),
+          quantityController.text
+              .replaceAll(',', '')
+              .trim(),
         ) ??
         0;
 
@@ -1867,14 +1889,148 @@ class _AddInvoiceItemSheetState
       return;
     }
 
-    final price = selectedSaree!.getPrice(code);
+    // ========================================================
+    // GOODS RETURN
+    // ========================================================
 
-    if (price <= 0) {
+    if (itemType == 2) {
+      final name = nameController.text.trim();
+
+      if (name.isEmpty && selectedSaree == null) {
+        setState(() {
+          error =
+              'Enter or select the returned saree/item name.';
+        });
+        return;
+      }
+
+      final priceText = priceController.text
+          .replaceAll(',', '')
+          .trim();
+
+      final enteredPrice =
+          double.tryParse(priceText);
+
+      if (enteredPrice == null ||
+          enteredPrice == 0) {
+        setState(() {
+          error =
+              'Enter the return amount.';
+        });
+        return;
+      }
+
+      // Always store a return as a negative price.
+      final returnPrice =
+          -enteredPrice.abs();
+
+      final returnName = name.isNotEmpty
+          ? name
+          : selectedSaree!.name;
+
+      final returnCode =
+          selectedSaree?.code ?? '';
+
+      Navigator.pop(
+        context,
+        InvoiceItem(
+          sareeId:
+              selectedSaree?.id ?? '',
+          sareeName: returnName,
+          sareeCode: returnCode,
+          priceCode: 'RETURN',
+          quantity: quantity,
+          price: returnPrice,
+        ),
+      );
+
+      return;
+    }
+
+    // ========================================================
+    // MANUAL ITEM
+    // ========================================================
+
+    if (itemType == 1) {
+      final name = nameController.text.trim();
+
+      if (name.isEmpty) {
+        setState(() {
+          error = 'Enter the item name.';
+        });
+        return;
+      }
+
+      final price = double.tryParse(
+            priceController.text
+                .replaceAll(',', '')
+                .trim(),
+          ) ??
+          0;
+
+      if (price <= 0) {
+        setState(() {
+          error = 'Enter a valid price.';
+        });
+        return;
+      }
+
+      Navigator.pop(
+        context,
+        InvoiceItem(
+          sareeId: '',
+          sareeName: name,
+          sareeCode: '',
+          priceCode: 'MANUAL',
+          quantity: quantity,
+          price: price,
+        ),
+      );
+
+      return;
+    }
+
+    // ========================================================
+    // EXISTING SAREE
+    // ========================================================
+
+    if (selectedSaree == null) {
       setState(() {
-        error =
-            'No price is set for code $code.';
+        error = 'Please select a saree.';
       });
       return;
+    }
+
+    double price = 0;
+    String priceCode = '';
+
+    if (priceMode == 'Manual') {
+      price = double.tryParse(
+            priceController.text
+                .replaceAll(',', '')
+                .trim(),
+          ) ??
+          0;
+
+      priceCode = 'MANUAL';
+
+      if (price <= 0) {
+        setState(() {
+          error = 'Enter a valid manual price.';
+        });
+        return;
+      }
+    } else {
+      priceCode = priceMode;
+      price = selectedSaree!.getPrice(priceCode);
+
+      if (price <= 0) {
+        setState(() {
+          error =
+              'No price is set for code $priceCode.';
+        });
+        return;
+      }
     }
 
     Navigator.pop(
@@ -1883,7 +2039,7 @@ class _AddInvoiceItemSheetState
         sareeId: selectedSaree!.id,
         sareeName: selectedSaree!.name,
         sareeCode: selectedSaree!.code,
-        priceCode: code,
+        priceCode: priceCode,
         quantity: quantity,
         price: price,
       ),
@@ -1892,7 +2048,9 @@ class _AddInvoiceItemSheetState
 
   @override
   void dispose() {
+    nameController.dispose();
     quantityController.dispose();
+    priceController.dispose();
     priceCodeController.dispose();
     super.dispose();
   }
@@ -1905,7 +2063,8 @@ class _AddInvoiceItemSheetState
         right: 16,
         top: 20,
         bottom:
-            MediaQuery.of(context).viewInsets.bottom + 20,
+            MediaQuery.of(context).viewInsets.bottom +
+                20,
       ),
       child: SingleChildScrollView(
         child: Column(
@@ -1922,91 +2081,382 @@ class _AddInvoiceItemSheetState
 
             const SizedBox(height: 20),
 
-            DropdownButtonFormField<Saree>(
-              value: selectedSaree,
-              isExpanded: true,
+            // ==================================================
+            // ITEM TYPE
+            // ==================================================
+
+            DropdownButtonFormField<int>(
+              value: itemType,
               decoration: const InputDecoration(
-                labelText: 'Select Saree',
+                labelText: 'Item Type',
                 prefixIcon:
-                    Icon(Icons.checkroom),
+                    Icon(Icons.category),
+                border: OutlineInputBorder(),
               ),
-              items: widget.sarees.map((saree) {
-                return DropdownMenuItem<Saree>(
-                  value: saree,
+              items: const [
+                DropdownMenuItem(
+                  value: 0,
                   child: Text(
-                    saree.code.isEmpty
-                        ? saree.name
-                        : '${saree.name} (${saree.code})',
-                    overflow:
-                        TextOverflow.ellipsis,
+                    'Existing Saree',
                   ),
-                );
-              }).toList(),
+                ),
+                DropdownMenuItem(
+                  value: 1,
+                  child: Text(
+                    'Manual Item',
+                  ),
+                ),
+                DropdownMenuItem(
+                  value: 2,
+                  child: Text(
+                    'Goods Return',
+                  ),
+                ),
+              ],
               onChanged: (value) {
                 setState(() {
-                  selectedSaree = value;
+                  itemType = value ?? 0;
+                  error = null;
                   selectedPrice = 0;
+                  priceController.clear();
+                  nameController.clear();
+                  selectedSaree = null;
                 });
-                updatePrice();
               },
             ),
 
-            const SizedBox(height: 15),
+            const SizedBox(height: 18),
 
-            TextField(
-              controller: priceCodeController,
-              textCapitalization:
-                  TextCapitalization.characters,
-              maxLength: 1,
-              onChanged: (_) => updatePrice(),
-              decoration: const InputDecoration(
-                labelText: 'Price Code',
-                hintText: 'A / B / C',
-                prefixIcon: Icon(Icons.sell),
-                counterText: '',
+            // ==================================================
+            // EXISTING SAREE
+            // ==================================================
+
+            if (itemType == 0) ...[
+              DropdownButtonFormField<Saree>(
+                value: selectedSaree,
+                isExpanded: true,
+                decoration:
+                    const InputDecoration(
+                  labelText: 'Select Saree',
+                  prefixIcon:
+                      Icon(Icons.checkroom),
+                  border: OutlineInputBorder(),
+                ),
+                items:
+                    widget.sarees.map((saree) {
+                  return DropdownMenuItem<Saree>(
+                    value: saree,
+                    child: Text(
+                      saree.code.isEmpty
+                          ? saree.name
+                          : '${saree.name} (${saree.code})',
+                      overflow:
+                          TextOverflow.ellipsis,
+                    ),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    selectedSaree = value;
+                    selectedPrice = 0;
+                  });
+
+                  updatePrice();
+                },
               ),
-            ),
 
-            const SizedBox(height: 8),
+              const SizedBox(height: 15),
 
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  children: [
-                    const Text(
-                      'Automatic Price',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                      ),
+              // =================================================
+              // PRICE MODE
+              // =================================================
+
+              DropdownButtonFormField<String>(
+                value: priceMode,
+                decoration:
+                    const InputDecoration(
+                  labelText: 'Price Type',
+                  prefixIcon:
+                      Icon(Icons.sell),
+                  border: OutlineInputBorder(),
+                ),
+                items: const [
+                  DropdownMenuItem(
+                    value: 'A',
+                    child: Text(
+                      'A — Price 1',
                     ),
-                    const SizedBox(height: 5),
-                    Text(
-                      selectedPrice > 0
-                          ? '₹${_formatNumber(selectedPrice)}'
-                          : 'Enter A, B or C',
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
+                  ),
+                  DropdownMenuItem(
+                    value: 'B',
+                    child: Text(
+                      'B — Price 2',
                     ),
-                  ],
+                  ),
+                  DropdownMenuItem(
+                    value: 'C',
+                    child: Text(
+                      'C — Price 3',
+                    ),
+                  ),
+                  DropdownMenuItem(
+                    value: 'Manual',
+                    child: Text(
+                      'Manual Price',
+                    ),
+                  ),
+                ],
+                onChanged: (value) {
+                  setState(() {
+                    priceMode =
+                        value ?? 'A';
+                    selectedPrice = 0;
+                    error = null;
+                  });
+
+                  updatePrice();
+                },
+              ),
+
+              const SizedBox(height: 15),
+
+              if (priceMode == 'Manual')
+                TextField(
+                  controller:
+                      priceController,
+                  keyboardType:
+                      const TextInputType
+                          .numberWithOptions(
+                    decimal: true,
+                  ),
+                  onChanged: (_) =>
+                      updatePrice(),
+                  decoration:
+                      const InputDecoration(
+                    labelText:
+                        'Manual Selling Price',
+                    prefixText: '₹ ',
+                    prefixIcon:
+                        Icon(Icons.edit),
+                    border:
+                        OutlineInputBorder(),
+                  ),
+                ),
+
+              if (priceMode == 'Manual')
+                const SizedBox(height: 12),
+
+              Card(
+                child: Padding(
+                  padding:
+                      const EdgeInsets.all(14),
+                  child: Column(
+                    children: [
+                      Text(
+                        priceMode == 'Manual'
+                            ? 'Manual Price'
+                            : 'Automatic Price',
+                        style:
+                            const TextStyle(
+                          fontWeight:
+                              FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        selectedPrice > 0
+                            ? '₹${_formatNumber(selectedPrice)}'
+                            : priceMode ==
+                                    'Manual'
+                                ? 'Enter manual price'
+                                : 'Select A, B or C',
+                        style:
+                            const TextStyle(
+                          fontSize: 22,
+                          fontWeight:
+                              FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
+            ],
+
+            // ==================================================
+            // MANUAL ITEM
+            // ==================================================
+
+            if (itemType == 1) ...[
+              TextField(
+                controller: nameController,
+                decoration:
+                    const InputDecoration(
+                  labelText:
+                      'Item / Saree Name',
+                  prefixIcon:
+                      Icon(Icons.edit),
+                  border:
+                      OutlineInputBorder(),
+                ),
+              ),
+
+              const SizedBox(height: 15),
+
+              TextField(
+                controller: priceController,
+                keyboardType:
+                    const TextInputType
+                        .numberWithOptions(
+                  decimal: true,
+                ),
+                decoration:
+                    const InputDecoration(
+                  labelText:
+                      'Selling Price',
+                  prefixText: '₹ ',
+                  prefixIcon:
+                      Icon(Icons.sell),
+                  border:
+                      OutlineInputBorder(),
+                ),
+              ),
+            ],
+
+            // ==================================================
+            // GOODS RETURN
+            // ==================================================
+
+            if (itemType == 2) ...[
+              const Text(
+                'Goods Return',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight:
+                      FontWeight.bold,
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
+              const Text(
+                'Enter the returned item name manually, '
+                'or select a saree from inventory.',
+              ),
+
+              const SizedBox(height: 15),
+
+              TextField(
+                controller: nameController,
+                decoration:
+                    const InputDecoration(
+                  labelText:
+                      'Returned Item / Saree Name',
+                  hintText:
+                      'Enter name if needed',
+                  prefixIcon:
+                      Icon(Icons.edit),
+                  border:
+                      OutlineInputBorder(),
+                ),
+              ),
+
+              const SizedBox(height: 15),
+
+              DropdownButtonFormField<Saree>(
+                value: selectedSaree,
+                isExpanded: true,
+                decoration:
+                    const InputDecoration(
+                  labelText:
+                      'Or Select Existing Saree',
+                  prefixIcon:
+                      Icon(Icons.checkroom),
+                  border:
+                      OutlineInputBorder(),
+                ),
+                items:
+                    widget.sarees.map((saree) {
+                  return DropdownMenuItem<Saree>(
+                    value: saree,
+                    child: Text(
+                      saree.code.isEmpty
+                          ? saree.name
+                          : '${saree.name} (${saree.code})',
+                      overflow:
+                          TextOverflow.ellipsis,
+                    ),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    selectedSaree = value;
+
+                    if (nameController
+                        .text
+                        .trim()
+                        .isEmpty) {
+                      nameController.text =
+                          value?.name ?? '';
+                    }
+                  });
+                },
+              ),
+
+              const SizedBox(height: 15),
+
+              TextField(
+                controller: priceController,
+                keyboardType:
+                    const TextInputType
+                        .numberWithOptions(
+                  decimal: true,
+                ),
+                decoration:
+                    const InputDecoration(
+                  labelText:
+                      'Return Amount',
+                  hintText:
+                      'Example: 1500',
+                  prefixText: '₹ ',
+                  prefixIcon:
+                      Icon(Icons.undo),
+                  border:
+                      OutlineInputBorder(),
+                ),
+              ),
+
+              const SizedBox(height: 5),
+
+              const Text(
+                'The app will automatically record this as a negative amount.',
+                style: TextStyle(
+                  fontSize: 12,
+                ),
+              ),
+            ],
 
             const SizedBox(height: 15),
 
+            // ==================================================
+            // QUANTITY
+            // ==================================================
+
             TextField(
-              controller: quantityController,
+              controller:
+                  quantityController,
               keyboardType:
-                  const TextInputType.numberWithOptions(
+                  const TextInputType
+                      .numberWithOptions(
                 decimal: true,
               ),
-              decoration: const InputDecoration(
+              decoration:
+                  const InputDecoration(
                 labelText: 'Quantity',
                 prefixIcon:
                     Icon(Icons.numbers),
+                border:
+                    OutlineInputBorder(),
               ),
             ),
 
@@ -2014,9 +2464,11 @@ class _AddInvoiceItemSheetState
               const SizedBox(height: 10),
               Text(
                 error!,
-                style: const TextStyle(
+                style:
+                    const TextStyle(
                   color: Colors.red,
-                  fontWeight: FontWeight.bold,
+                  fontWeight:
+                      FontWeight.bold,
                 ),
               ),
             ],
@@ -2028,8 +2480,11 @@ class _AddInvoiceItemSheetState
               height: 50,
               child: FilledButton.icon(
                 onPressed: save,
-                icon: const Icon(Icons.add),
-                label: const Text('ADD TO INVOICE'),
+                icon:
+                    const Icon(Icons.add),
+                label: const Text(
+                  'ADD TO INVOICE',
+                ),
               ),
             ),
           ],
