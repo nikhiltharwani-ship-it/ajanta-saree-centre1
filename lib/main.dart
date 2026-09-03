@@ -1135,18 +1135,32 @@ class PaymentStorage {
   // DELETE ONE PAYMENT
   // ==========================================================
 
-  static Future<void> delete(
+    static Future<void> delete(
     String paymentId,
   ) async {
     final payments = await load();
+
+    String affectedCustomerId = '';
+
+    for (final payment in payments) {
+      if (payment.id == paymentId) {
+        affectedCustomerId = payment.customerId;
+        break;
+      }
+    }
 
     payments.removeWhere(
       (payment) => payment.id == paymentId,
     );
 
     await save(payments);
-  }
-}
+
+    if (affectedCustomerId.trim().isNotEmpty) {
+      await InvoiceStorage.recalculateCustomerPayments(
+        {affectedCustomerId},
+      );
+    }
+    }
 
 // ============================================================
 // SESSION MANAGEMENT
