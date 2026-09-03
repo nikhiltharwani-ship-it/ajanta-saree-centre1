@@ -1060,7 +1060,7 @@ class _LoginPageState extends State<LoginPage> {
   final idController = TextEditingController();
   final pinController = TextEditingController();
 
-  bool customer = false;
+bool customer = true;
 
   Future<void> login() async {
   final enteredId = idController.text.trim();
