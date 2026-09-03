@@ -4517,9 +4517,18 @@ class _PaymentsPageState
 
     if (confirm != true) return;
 
+        final affectedCustomerId =
+        payment.customerId;
+
     await PaymentStorage.delete(
       payment.id,
     );
+
+    if (affectedCustomerId.trim().isNotEmpty) {
+      await InvoiceStorage.recalculateCustomerPayments(
+        {affectedCustomerId},
+      );
+    }
 
     if (!mounted) return;
 
