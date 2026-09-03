@@ -972,9 +972,7 @@ class SessionPage extends StatefulWidget {
       _SessionPageState();
 }
 
-class _SessionPageState
-    extends State<SessionPage> {
-
+class _SessionPageState extends State<SessionPage> {
   @override
   void initState() {
     super.initState();
@@ -1002,17 +1000,24 @@ class _SessionPageState
 
     if (!mounted) return;
 
+    String? customerId;
+
+    if (customer) {
+      customerId =
+          await SessionManager.getCustomerId();
+    }
+
+    if (!mounted) return;
+
     Navigator.pushReplacement(
-  context,
-  MaterialPageRoute(
-    builder: (_) => HomePage(
-      customer: customer,
-      customerId: customer
-          ? await SessionManager.getCustomerId()
-          : null,
-    ),
-  ),
-);
+      context,
+      MaterialPageRoute(
+        builder: (_) => HomePage(
+          customer: customer,
+          customerId: customerId,
+        ),
+      ),
+    );
   }
 
   @override
@@ -1081,18 +1086,19 @@ class _LoginPageState extends State<LoginPage> {
     };
 
     if (admins[enteredId] == enteredPin) {
-  await SessionManager.saveAdminSession(enteredId);
+      await SessionManager.saveAdminSession();
 
-  if (!mounted) return;
+      if (!mounted) return;
 
-  Navigator.pushReplacement(
-    context,
-    MaterialPageRoute(
-      builder: (_) => const HomePage(customer: false),
-    ),
-  );
-    }
-    else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const HomePage(
+            customer: false,
+          ),
+        ),
+      );
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Invalid Admin ID or PIN'),
@@ -1109,29 +1115,30 @@ class _LoginPageState extends State<LoginPage> {
 
   try {
     final snapshot = await FirebaseFirestore.instance
-    .collection('customers')
-    .where('id', isEqualTo: enteredId)
-    .where('pin', isEqualTo: enteredPin)
-    .limit(1)
-    .get();
+        .collection('customers')
+        .where('id', isEqualTo: enteredId)
+        .where('pin', isEqualTo: enteredPin)
+        .limit(1)
+        .get();
 
     if (!mounted) return;
 
-if (snapshot.docs.isNotEmpty) {
-  await SessionManager.saveCustomerSession(enteredId);
+    if (snapshot.docs.isNotEmpty) {
+      await SessionManager.saveCustomerSession(
+        enteredId,
+      );
 
-  if (!mounted) return;
+      if (!mounted) return;
 
-  Navigator.pushReplacement(
-    context,
-    MaterialPageRoute(
-      builder: (_) => HomePage(
-        customer: true,
-        customerId: enteredId,
-      ),
-    ),
-  );
-}
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => HomePage(
+            customer: true,
+            customerId: enteredId,
+          ),
+        ),
+      );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
