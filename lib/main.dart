@@ -26,13 +26,16 @@ class AjantaApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Ajanta Saree Centre',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.black),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.black,
+        ),
         useMaterial3: true,
-        inputDecorationTheme: const InputDecorationTheme(
+        inputDecorationTheme:
+            const InputDecorationTheme(
           border: OutlineInputBorder(),
         ),
       ),
-      home: const LoginPage(),
+      home: const SessionPage(),
     );
   }
 }
@@ -890,6 +893,139 @@ class InvoiceStorage {
 }
 
 // ============================================================
+// SESSION MANAGEMENT
+// ============================================================
+
+class SessionManager {
+  static const String loggedInKey =
+      'asc_logged_in';
+
+  static const String customerKey =
+      'asc_logged_in_customer';
+
+  static const String customerIdKey =
+      'asc_customer_id';
+
+  static Future<void> saveAdminSession() async {
+    final prefs =
+        await SharedPreferences.getInstance();
+
+    await prefs.setBool(loggedInKey, true);
+    await prefs.setBool(customerKey, false);
+    await prefs.remove(customerIdKey);
+  }
+
+  static Future<void> saveCustomerSession(
+    String customerId,
+  ) async {
+    final prefs =
+        await SharedPreferences.getInstance();
+
+    await prefs.setBool(loggedInKey, true);
+    await prefs.setBool(customerKey, true);
+    await prefs.setString(
+      customerIdKey,
+      customerId,
+    );
+  }
+
+  static Future<bool> isLoggedIn() async {
+    final prefs =
+        await SharedPreferences.getInstance();
+
+    return prefs.getBool(loggedInKey) ?? false;
+  }
+
+  static Future<bool> isCustomer() async {
+    final prefs =
+        await SharedPreferences.getInstance();
+
+    return prefs.getBool(customerKey) ?? false;
+  }
+
+  static Future<String> getCustomerId() async {
+    final prefs =
+        await SharedPreferences.getInstance();
+
+    return prefs.getString(customerIdKey) ?? '';
+  }
+
+  static Future<void> logout() async {
+    final prefs =
+        await SharedPreferences.getInstance();
+
+    await prefs.remove(loggedInKey);
+    await prefs.remove(customerKey);
+    await prefs.remove(customerIdKey);
+  }
+}
+
+// ============================================================
+// SESSION CHECK
+// ============================================================
+
+class SessionPage extends StatefulWidget {
+  const SessionPage({super.key});
+
+  @override
+  State<SessionPage> createState() =>
+      _SessionPageState();
+}
+
+class _SessionPageState
+    extends State<SessionPage> {
+
+  @override
+  void initState() {
+    super.initState();
+    checkSession();
+  }
+
+  Future<void> checkSession() async {
+    final loggedIn =
+        await SessionManager.isLoggedIn();
+
+    if (!mounted) return;
+
+    if (!loggedIn) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const LoginPage(),
+        ),
+      );
+      return;
+    }
+
+    final customer =
+        await SessionManager.isCustomer();
+
+    if (!mounted) return;
+
+    Navigator.pushReplacement(
+  context,
+  MaterialPageRoute(
+    builder: (_) => HomePage(
+      customer: customer,
+      customerId: customer
+          ? await SessionManager.getCustomerId()
+          : null,
+    ),
+  ),
+);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+  }
+}
+
+// ============================================================
 // LOGIN
 // ============================================================
 
@@ -945,13 +1081,18 @@ class _LoginPageState extends State<LoginPage> {
     };
 
     if (admins[enteredId] == enteredPin) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const HomePage(customer: false),
-        ),
-      );
-    } else {
+  await SessionManager.saveAdminSession(enteredId);
+
+  if (!mounted) return;
+
+  Navigator.pushReplacement(
+    context,
+    MaterialPageRoute(
+      builder: (_) => const HomePage(customer: false),
+    ),
+  );
+    }
+    else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Invalid Admin ID or PIN'),
@@ -976,16 +1117,21 @@ class _LoginPageState extends State<LoginPage> {
 
     if (!mounted) return;
 
-    if (snapshot.docs.isNotEmpty) {
-      Navigator.pushReplacement(
-  context,
-  MaterialPageRoute(
-    builder: (_) => HomePage(
-      customer: true,
-      customerId: enteredId,
+if (snapshot.docs.isNotEmpty) {
+  await SessionManager.saveCustomerSession(enteredId);
+
+  if (!mounted) return;
+
+  Navigator.pushReplacement(
+    context,
+    MaterialPageRoute(
+      builder: (_) => HomePage(
+        customer: true,
+        customerId: enteredId,
+      ),
     ),
-  ),
-);
+  );
+}
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
