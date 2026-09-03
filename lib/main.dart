@@ -2138,7 +2138,7 @@ class _SalesPageState extends State<SalesPage> {
     });
   }
 
-  Future<void> createInvoice() async {
+    Future<void> createInvoice() async {
     final result = await Navigator.push<Invoice>(
       context,
       MaterialPageRoute(
@@ -2146,14 +2146,62 @@ class _SalesPageState extends State<SalesPage> {
       ),
     );
 
-    if (result != null) {
-      setState(() {
-        invoices.insert(0, result);
-      });
+    if (result == null) return;
 
-      await InvoiceStorage.save(invoices);
+    setState(() {
+      invoices.insert(0, result);
+    });
+
+    await InvoiceStorage.save(invoices);
+
+    // ==========================================================
+    // RECORD AMOUNT RECEIVED WITH THE INVOICE AS A PAYMENT
+    // ==========================================================
+
+    if (result.paid > 0 &&
+        result.customerId.trim().isNotEmpty) {
+      final paymentId =
+          await PaymentStorage.nextPaymentId();
+
+      final payment = Payment(
+        id: paymentId,
+        customerId: result.customerId,
+        customerName: result.customerName,
+        date: result.date,
+        amount: result.paid,
+        reference: 'Invoice ${result.number}',
+        notes: 'Amount received with invoice',
+      );
+
+      final payments =
+          await PaymentStorage.load();
+
+      payments.add(payment);
+
+      await PaymentStorage.save(payments);
     }
-  }
+
+    // ==========================================================
+    // RECALCULATE CUSTOMER INVOICE BALANCES
+    // ==========================================================
+
+    if (result.customerId.trim().isNotEmpty) {
+      await InvoiceStorage.recalculateCustomerPayments(
+        {result.customerId},
+      );
+    }
+
+    // Reload the invoices so the Sales screen
+    // displays the recalculated Paid/Outstanding values.
+    final updatedInvoices =
+        await InvoiceStorage.load();
+
+    if (!mounted) return;
+
+    setState(() {
+      invoices = updatedInvoices;
+    });
+    }
 
   @override
   Widget build(BuildContext context) {
