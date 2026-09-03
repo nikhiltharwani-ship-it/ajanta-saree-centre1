@@ -4448,7 +4448,7 @@ class _PaymentsPageState
     });
   }
 
-  Future<void> addPayment() async {
+    Future<void> addPayment() async {
     final result =
         await Navigator.push<Payment>(
       context,
@@ -4456,6 +4456,23 @@ class _PaymentsPageState
         builder: (_) => const AddPaymentPage(),
       ),
     );
+
+    if (result == null) return;
+
+    setState(() {
+      payments.insert(0, result);
+    });
+
+    await PaymentStorage.save(payments);
+
+    // Recalculate this customer's invoices
+    // after recording the payment.
+    if (result.customerId.trim().isNotEmpty) {
+      await InvoiceStorage.recalculateCustomerPayments(
+        {result.customerId},
+      );
+    }
+    }
 
     if (result == null) return;
 
