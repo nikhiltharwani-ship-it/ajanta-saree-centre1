@@ -891,6 +891,157 @@ class InvoiceStorage {
     return '$yearText/${next.toString().padLeft(3, '0')}';
   }
 }
+// ============================================================
+// PAYMENT MODEL
+// ============================================================
+
+class Payment {
+  String id;
+  String customerId;
+  String customerName;
+  DateTime date;
+  double amount;
+  String reference;
+  String notes;
+
+  Payment({
+    required this.id,
+    required this.customerId,
+    required this.customerName,
+    required this.date,
+    required this.amount,
+    this.reference = '',
+    this.notes = '',
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'customerId': customerId,
+      'customerName': customerName,
+      'date': date.toIso8601String(),
+      'amount': amount,
+      'reference': reference,
+      'notes': notes,
+    };
+  }
+
+  factory Payment.fromJson(Map<String, dynamic> map) {
+    return Payment(
+      id: map['id']?.toString() ?? '',
+      customerId:
+          map['customerId']?.toString() ?? '',
+      customerName:
+          map['customerName']?.toString() ?? '',
+      date: DateTime.tryParse(
+            map['date']?.toString() ?? '',
+          ) ??
+          DateTime.now(),
+      amount:
+          (map['amount'] as num?)?.toDouble() ?? 0,
+      reference:
+          map['reference']?.toString() ?? '',
+      notes:
+          map['notes']?.toString() ?? '',
+    );
+  }
+}
+
+// ============================================================
+// PAYMENT STORAGE
+// ============================================================
+
+class PaymentStorage {
+  static const String paymentsKey =
+      'ajanta_payments';
+
+  static const String paymentNumberKey =
+      'ajanta_payment_number';
+
+  // ==========================================================
+  // LOAD PAYMENTS
+  // ==========================================================
+
+  static Future<List<Payment>> load() async {
+    final prefs =
+        await SharedPreferences.getInstance();
+
+    final data = prefs.getString(paymentsKey);
+
+    if (data == null || data.isEmpty) {
+      return [];
+    }
+
+    try {
+      final decoded = jsonDecode(data) as List;
+
+      return decoded
+          .map(
+            (item) => Payment.fromJson(
+              Map<String, dynamic>.from(item),
+            ),
+          )
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  // ==========================================================
+  // SAVE PAYMENTS
+  // ==========================================================
+
+  static Future<void> save(
+    List<Payment> payments,
+  ) async {
+    final prefs =
+        await SharedPreferences.getInstance();
+
+    await prefs.setString(
+      paymentsKey,
+      jsonEncode(
+        payments
+            .map((payment) => payment.toJson())
+            .toList(),
+      ),
+    );
+  }
+
+  // ==========================================================
+  // GENERATE PAYMENT ID
+  // ==========================================================
+
+  static Future<String> nextPaymentId() async {
+    final prefs =
+        await SharedPreferences.getInstance();
+
+    final next =
+        (prefs.getInt(paymentNumberKey) ?? 0) + 1;
+
+    await prefs.setInt(
+      paymentNumberKey,
+      next,
+    );
+
+    return 'PAY-${next.toString().padLeft(4, '0')}';
+  }
+
+  // ==========================================================
+  // DELETE ONE PAYMENT
+  // ==========================================================
+
+  static Future<void> delete(
+    String paymentId,
+  ) async {
+    final payments = await load();
+
+    payments.removeWhere(
+      (payment) => payment.id == paymentId,
+    );
+
+    await save(payments);
+  }
+}
 
 // ============================================================
 // SESSION MANAGEMENT
