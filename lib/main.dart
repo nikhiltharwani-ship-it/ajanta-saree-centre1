@@ -3839,29 +3839,36 @@ class AccountsPage extends StatelessWidget {
           const SizedBox(height: 8),
 
           Card(
-            child: ListTile(
-              leading: const CircleAvatar(
-                child: Icon(
-                  Icons.account_balance_wallet,
-                ),
-              ),
-              title: const Text(
-                'Customer Outstanding',
-              ),
-              subtitle: const Text(
-                'View outstanding balances',
-              ),
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Outstanding module will be connected next.',
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
+  child: ListTile(
+    leading: const CircleAvatar(
+      child: Icon(
+        Icons.account_balance_wallet,
+      ),
+    ),
+    title: const Text(
+      'Customer Outstanding',
+      style: TextStyle(
+        fontWeight: FontWeight.bold,
+      ),
+    ),
+    subtitle: const Text(
+      'View customer balances and account history',
+    ),
+    trailing: const Icon(
+      Icons.arrow_forward_ios,
+      size: 18,
+    ),
+    onTap: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              const CustomerOutstandingPage(),
+        ),
+      );
+    },
+  ),
+),
 
           const SizedBox(height: 8),
 
@@ -4772,6 +4779,562 @@ class _AddPaymentPageState
                     ),
                   ],
                 ),
+    );
+  }
+}
+
+// ============================================================
+// CUSTOMER OUTSTANDING
+// ============================================================
+
+class CustomerOutstandingPage
+    extends StatefulWidget {
+  const CustomerOutstandingPage({
+    super.key,
+  });
+
+  @override
+  State<CustomerOutstandingPage> createState() =>
+      _CustomerOutstandingPageState();
+}
+
+class _CustomerOutstandingPageState
+    extends State<CustomerOutstandingPage> {
+  List<Customer> customers = [];
+  List<Invoice> invoices = [];
+  List<Payment> payments = [];
+
+  bool loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    loadData();
+  }
+
+  Future<void> loadData() async {
+    try {
+      final loadedCustomers =
+          await CustomerStorage.load();
+
+      final loadedInvoices =
+          await InvoiceStorage.load();
+
+      final loadedPayments =
+          await PaymentStorage.load();
+
+      if (!mounted) return;
+
+      setState(() {
+        customers = loadedCustomers;
+        invoices = loadedInvoices;
+        payments = loadedPayments;
+        loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        loading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Unable to load outstanding data: $e',
+          ),
+        ),
+      );
+    }
+  }
+
+  double totalSalesForCustomer(
+    String customerId,
+  ) {
+    return invoices
+        .where(
+          (invoice) =>
+              invoice.customerId.trim() ==
+              customerId.trim(),
+        )
+        .fold(
+          0,
+          (sum, invoice) =>
+              sum + invoice.grandTotal,
+        );
+  }
+
+  double totalPaymentsForCustomer(
+    String customerId,
+  ) {
+    return payments
+        .where(
+          (payment) =>
+              payment.customerId.trim() ==
+              customerId.trim(),
+        )
+        .fold(
+          0,
+          (sum, payment) =>
+              sum + payment.amount,
+        );
+  }
+
+  double balanceForCustomer(
+    String customerId,
+  ) {
+    return totalSalesForCustomer(customerId) -
+        totalPaymentsForCustomer(customerId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Customer Outstanding',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+
+      body: customers.isEmpty
+          ? const Center(
+              child: Text(
+                'No customers found.',
+              ),
+            )
+          : RefreshIndicator(
+              onRefresh: loadData,
+              child: ListView.builder(
+                padding: const EdgeInsets.all(12),
+                itemCount: customers.length,
+                itemBuilder: (context, index) {
+                  final customer =
+                      customers[index];
+
+                  final sales =
+                      totalSalesForCustomer(
+                    customer.id,
+                  );
+
+                  final paid =
+                      totalPaymentsForCustomer(
+                    customer.id,
+                  );
+
+                  final balance =
+                      sales - paid;
+
+                  return Card(
+                    child: ListTile(
+                      leading:
+                          const CircleAvatar(
+                        child: Icon(
+                          Icons.person,
+                        ),
+                      ),
+
+                      title: Text(
+                        customer.name,
+                        style:
+                            const TextStyle(
+                          fontWeight:
+                              FontWeight.bold,
+                        ),
+                      ),
+
+                      subtitle: Text(
+                        '${customer.id}\n'
+                        'Sales: ₹${sales.toStringAsFixed(2)}\n'
+                        'Paid: ₹${paid.toStringAsFixed(2)}',
+                      ),
+
+                      isThreeLine: true,
+
+                      trailing: Column(
+                        mainAxisAlignment:
+                            MainAxisAlignment.center,
+                        crossAxisAlignment:
+                            CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            balance >= 0
+                                ? 'Due'
+                                : 'Credit',
+                            style:
+                                const TextStyle(
+                              fontWeight:
+                                  FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '₹${balance.abs().toStringAsFixed(2)}',
+                            style:
+                                const TextStyle(
+                              fontWeight:
+                                  FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                CustomerAccountDetailPage(
+                              customer: customer,
+                              invoices: invoices
+                                  .where(
+                                    (invoice) =>
+                                        invoice.customerId
+                                            .trim() ==
+                                        customer.id
+                                            .trim(),
+                                  )
+                                  .toList(),
+                              payments: payments
+                                  .where(
+                                    (payment) =>
+                                        payment.customerId
+                                            .trim() ==
+                                        customer.id
+                                            .trim(),
+                                  )
+                                  .toList(),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
+    );
+  }
+}
+
+// ============================================================
+// CUSTOMER ACCOUNT DETAIL
+// ============================================================
+
+class CustomerAccountDetailPage
+    extends StatelessWidget {
+  final Customer customer;
+  final List<Invoice> invoices;
+  final List<Payment> payments;
+
+  const CustomerAccountDetailPage({
+    super.key,
+    required this.customer,
+    required this.invoices,
+    required this.payments,
+  });
+
+  double get totalSales {
+    return invoices.fold(
+      0,
+      (sum, invoice) =>
+          sum + invoice.grandTotal,
+    );
+  }
+
+  double get totalPaid {
+    return payments.fold(
+      0,
+      (sum, payment) =>
+          sum + payment.amount,
+    );
+  }
+
+  double get balance {
+    return totalSales - totalPaid;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sortedInvoices =
+        List<Invoice>.from(invoices)
+          ..sort(
+            (a, b) =>
+                b.date.compareTo(a.date),
+          );
+
+    final sortedPayments =
+        List<Payment>.from(payments)
+          ..sort(
+            (a, b) =>
+                b.date.compareTo(a.date),
+          );
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          customer.name,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // ==================================================
+          // CUSTOMER
+          // ==================================================
+
+          Card(
+            child: Padding(
+              padding:
+                  const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    customer.name,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight:
+                          FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Customer ID: ${customer.id}',
+                  ),
+                  if (customer
+                      .gstNumber
+                      .trim()
+                      .isNotEmpty)
+                    Text(
+                      'GST: ${customer.gstNumber}',
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // ==================================================
+          // ACCOUNT SUMMARY
+          // ==================================================
+
+          Card(
+            child: Padding(
+              padding:
+                  const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  _AccountAmountRow(
+                    label: 'Total Sales',
+                    amount: totalSales,
+                  ),
+                  const Divider(),
+                  _AccountAmountRow(
+                    label: 'Total Payments',
+                    amount: totalPaid,
+                  ),
+                  const Divider(),
+                  _AccountAmountRow(
+                    label: balance >= 0
+                        ? 'Outstanding'
+                        : 'Customer Credit',
+                    amount: balance.abs(),
+                    bold: true,
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // ==================================================
+          // INVOICES
+          // ==================================================
+
+          const Text(
+            'Invoices',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          if (sortedInvoices.isEmpty)
+            const Card(
+              child: Padding(
+                padding:
+                    EdgeInsets.all(16),
+                child: Text(
+                  'No invoices found.',
+                ),
+              ),
+            ),
+
+          ...sortedInvoices.map(
+            (invoice) {
+              return Card(
+                child: ListTile(
+                  leading:
+                      const Icon(
+                    Icons.receipt_long,
+                  ),
+                  title: Text(
+                    invoice.number,
+                    style:
+                        const TextStyle(
+                      fontWeight:
+                          FontWeight.bold,
+                    ),
+                  ),
+                  subtitle: Text(
+                    '${invoice.date.day.toString().padLeft(2, '0')}/'
+                    '${invoice.date.month.toString().padLeft(2, '0')}/'
+                    '${invoice.date.year}\n'
+                    'Paid: ₹${invoice.paid.toStringAsFixed(2)}  •  '
+                    'Due: ₹${invoice.outstanding.toStringAsFixed(2)}',
+                  ),
+                  trailing: Text(
+                    '₹${invoice.grandTotal.toStringAsFixed(2)}',
+                    style:
+                        const TextStyle(
+                      fontWeight:
+                          FontWeight.bold,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+
+          const SizedBox(height: 24),
+
+          // ==================================================
+          // PAYMENTS
+          // ==================================================
+
+          const Text(
+            'Payments',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          if (sortedPayments.isEmpty)
+            const Card(
+              child: Padding(
+                padding:
+                    EdgeInsets.all(16),
+                child: Text(
+                  'No payments found.',
+                ),
+              ),
+            ),
+
+          ...sortedPayments.map(
+            (payment) {
+              return Card(
+                child: ListTile(
+                  leading:
+                      const Icon(
+                    Icons.payments,
+                  ),
+                  title: Text(
+                    payment.id,
+                    style:
+                        const TextStyle(
+                      fontWeight:
+                          FontWeight.bold,
+                    ),
+                  ),
+                  subtitle: Text(
+                    '${payment.date.day.toString().padLeft(2, '0')}/'
+                    '${payment.date.month.toString().padLeft(2, '0')}/'
+                    '${payment.date.year}'
+                    '${payment.reference.isEmpty ? '' : '\nRef: ${payment.reference}'}',
+                  ),
+                  trailing: Text(
+                    '₹${payment.amount.toStringAsFixed(2)}',
+                    style:
+                        const TextStyle(
+                      fontWeight:
+                          FontWeight.bold,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================
+// ACCOUNT AMOUNT ROW
+// ============================================================
+
+class _AccountAmountRow
+    extends StatelessWidget {
+  final String label;
+  final double amount;
+  final bool bold;
+
+  const _AccountAmountRow({
+    required this.label,
+    required this.amount,
+    this.bold = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment:
+          MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontWeight: bold
+                ? FontWeight.bold
+                : FontWeight.normal,
+            fontSize: bold ? 16 : 14,
+          ),
+        ),
+        Text(
+          '₹${amount.toStringAsFixed(2)}',
+          style: TextStyle(
+            fontWeight: bold
+                ? FontWeight.bold
+                : FontWeight.normal,
+            fontSize: bold ? 17 : 14,
+          ),
+        ),
+      ],
     );
   }
 }
