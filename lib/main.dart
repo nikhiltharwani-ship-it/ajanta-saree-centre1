@@ -3808,25 +3808,33 @@ class AccountsPage extends StatelessWidget {
           const SizedBox(height: 8),
 
           Card(
-            child: ListTile(
-              leading: const CircleAvatar(
-                child: Icon(Icons.payments),
-              ),
-              title: const Text('Payments'),
-              subtitle: const Text(
-                'Record customer payments',
-              ),
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Payments module will be added next.',
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
+  child: ListTile(
+    leading: const CircleAvatar(
+      child: Icon(Icons.payments),
+    ),
+    title: const Text(
+      'Payments',
+      style: TextStyle(
+        fontWeight: FontWeight.bold,
+      ),
+    ),
+    subtitle: const Text(
+      'Record and manage customer payments',
+    ),
+    trailing: const Icon(
+      Icons.arrow_forward_ios,
+      size: 18,
+    ),
+    onTap: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const PaymentsPage(),
+        ),
+      );
+    },
+  ),
+),
 
           const SizedBox(height: 8),
 
@@ -4262,4 +4270,508 @@ String _dateText(DateTime date) {
   return '${date.day.toString().padLeft(2, '0')}/'
       '${date.month.toString().padLeft(2, '0')}/'
       '${date.year}';
+}
+// ============================================================
+// PAYMENTS PAGE
+// ============================================================
+
+class PaymentsPage extends StatefulWidget {
+  const PaymentsPage({super.key});
+
+  @override
+  State<PaymentsPage> createState() =>
+      _PaymentsPageState();
+}
+
+class _PaymentsPageState
+    extends State<PaymentsPage> {
+  List<Payment> payments = [];
+  bool loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    loadPayments();
+  }
+
+  Future<void> loadPayments() async {
+    final data = await PaymentStorage.load();
+
+    if (!mounted) return;
+
+    setState(() {
+      payments = data;
+      loading = false;
+    });
+  }
+
+  Future<void> addPayment() async {
+    final result =
+        await Navigator.push<Payment>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const AddPaymentPage(),
+      ),
+    );
+
+    if (result == null) return;
+
+    setState(() {
+      payments.insert(0, result);
+    });
+
+    await PaymentStorage.save(payments);
+  }
+
+  Future<void> deletePayment(
+    Payment payment,
+  ) async {
+    final confirm =
+        await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text(
+            'Delete Payment?',
+          ),
+          content: Text(
+            'This will permanently delete payment '
+            '${payment.id} of ₹${payment.amount.toStringAsFixed(2)} '
+            'from ${payment.customerName}.\n\n'
+            'This action cannot be undone.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(
+                  context,
+                  false,
+                );
+              },
+              child: const Text('CANCEL'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(
+                  context,
+                  true,
+                );
+              },
+              child: const Text('DELETE'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm != true) return;
+
+    await PaymentStorage.delete(
+      payment.id,
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      payments.removeWhere(
+        (item) => item.id == payment.id,
+      );
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Payment deleted',
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Payments',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+
+      body: loading
+          ? const Center(
+              child: CircularProgressIndicator(),
+            )
+          : payments.isEmpty
+              ? const Center(
+                  child: Column(
+                    mainAxisSize:
+                        MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.payments_outlined,
+                        size: 60,
+                      ),
+                      SizedBox(height: 12),
+                      Text(
+                        'No payments recorded',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight:
+                              FontWeight.bold,
+                        ),
+                      ),
+                      SizedBox(height: 6),
+                      Text(
+                        'Tap + to record a payment',
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  padding:
+                      const EdgeInsets.all(12),
+                  itemCount: payments.length,
+                  itemBuilder:
+                      (context, index) {
+                    final payment =
+                        payments[index];
+
+                    return Card(
+                      child: ListTile(
+                        leading:
+                            const CircleAvatar(
+                          child: Icon(
+                            Icons.currency_rupee,
+                          ),
+                        ),
+
+                        title: Text(
+                          payment.customerName,
+                          style:
+                              const TextStyle(
+                            fontWeight:
+                                FontWeight.bold,
+                          ),
+                        ),
+
+                        subtitle: Text(
+                          '${payment.id}\n'
+                          '${payment.date.day.toString().padLeft(2, '0')}/'
+                          '${payment.date.month.toString().padLeft(2, '0')}/'
+                          '${payment.date.year}'
+                          '${payment.reference.isEmpty ? '' : '\nRef: ${payment.reference}'}',
+                        ),
+
+                        isThreeLine:
+                            payment.reference
+                                .isNotEmpty,
+
+                        trailing: Row(
+                          mainAxisSize:
+                              MainAxisSize.min,
+                          children: [
+                            Text(
+                              '₹${payment.amount.toStringAsFixed(2)}',
+                              style:
+                                  const TextStyle(
+                                fontWeight:
+                                    FontWeight.bold,
+                                fontSize: 15,
+                              ),
+                            ),
+
+                            PopupMenuButton<
+                                String>(
+                              onSelected:
+                                  (value) {
+                                if (value ==
+                                    'delete') {
+                                  deletePayment(
+                                    payment,
+                                  );
+                                }
+                              },
+                              itemBuilder:
+                                  (_) => const [
+                                PopupMenuItem(
+                                  value:
+                                      'delete',
+                                  child: Text(
+                                    'Delete',
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+
+      floatingActionButton:
+          FloatingActionButton.extended(
+        onPressed: addPayment,
+        icon: const Icon(Icons.add),
+        label: const Text(
+          'Add Payment',
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// ADD PAYMENT PAGE
+// ============================================================
+
+class AddPaymentPage extends StatefulWidget {
+  const AddPaymentPage({super.key});
+
+  @override
+  State<AddPaymentPage> createState() =>
+      _AddPaymentPageState();
+}
+
+class _AddPaymentPageState
+    extends State<AddPaymentPage> {
+  List<Customer> customers = [];
+
+  Customer? selectedCustomer;
+
+  final amountController =
+      TextEditingController();
+
+  final referenceController =
+      TextEditingController();
+
+  final notesController =
+      TextEditingController();
+
+  bool loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    loadCustomers();
+  }
+
+  Future<void> loadCustomers() async {
+    final data =
+        await CustomerStorage.load();
+
+    if (!mounted) return;
+
+    setState(() {
+      customers = data;
+      loading = false;
+    });
+  }
+
+  Future<void> savePayment() async {
+    if (selectedCustomer == null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please select a customer',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final amount =
+        double.tryParse(
+      amountController.text.trim(),
+    );
+
+    if (amount == null || amount <= 0) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please enter a valid payment amount',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final paymentId =
+        await PaymentStorage.nextPaymentId();
+
+    final payment = Payment(
+      id: paymentId,
+      customerId:
+          selectedCustomer!.id,
+      customerName:
+          selectedCustomer!.name,
+      date: DateTime.now(),
+      amount: amount,
+      reference:
+          referenceController.text.trim(),
+      notes:
+          notesController.text.trim(),
+    );
+
+    if (!mounted) return;
+
+    Navigator.pop(
+      context,
+      payment,
+    );
+  }
+
+  @override
+  void dispose() {
+    amountController.dispose();
+    referenceController.dispose();
+    notesController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Add Payment',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+
+      body: loading
+          ? const Center(
+              child: CircularProgressIndicator(),
+            )
+          : customers.isEmpty
+              ? const Center(
+                  child: Text(
+                    'No customers found.\n'
+                    'Create a customer first.',
+                    textAlign:
+                        TextAlign.center,
+                  ),
+                )
+              : ListView(
+                  padding:
+                      const EdgeInsets.all(16),
+                  children: [
+                    DropdownButtonFormField<
+                        Customer>(
+                      value: selectedCustomer,
+                      isExpanded: true,
+                      decoration:
+                          const InputDecoration(
+                        labelText:
+                            'Customer *',
+                        prefixIcon:
+                            Icon(Icons.person),
+                        border:
+                            OutlineInputBorder(),
+                      ),
+                      items: customers.map(
+                        (customer) {
+                          return DropdownMenuItem<
+                              Customer>(
+                            value: customer,
+                            child: Text(
+                              '${customer.name} (${customer.id})',
+                              overflow:
+                                  TextOverflow.ellipsis,
+                            ),
+                          );
+                        },
+                      ).toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          selectedCustomer =
+                              value;
+                        });
+                      },
+                    ),
+
+                    const SizedBox(height: 18),
+
+                    TextField(
+                      controller:
+                          amountController,
+                      keyboardType:
+                          const TextInputType
+                              .numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration:
+                          const InputDecoration(
+                        labelText:
+                            'Payment Amount *',
+                        prefixText: '₹ ',
+                        prefixIcon:
+                            Icon(
+                          Icons.currency_rupee,
+                        ),
+                        border:
+                            OutlineInputBorder(),
+                      ),
+                    ),
+
+                    const SizedBox(height: 18),
+
+                    TextField(
+                      controller:
+                          referenceController,
+                      decoration:
+                          const InputDecoration(
+                        labelText:
+                            'Reference / Receipt No.',
+                        prefixIcon:
+                            Icon(Icons.receipt),
+                        border:
+                            OutlineInputBorder(),
+                      ),
+                    ),
+
+                    const SizedBox(height: 18),
+
+                    TextField(
+                      controller:
+                          notesController,
+                      maxLines: 3,
+                      decoration:
+                          const InputDecoration(
+                        labelText: 'Notes',
+                        prefixIcon:
+                            Icon(Icons.notes),
+                        border:
+                            OutlineInputBorder(),
+                      ),
+                    ),
+
+                    const SizedBox(height: 25),
+
+                    SizedBox(
+                      width:
+                          double.infinity,
+                      height: 52,
+                      child:
+                          FilledButton.icon(
+                        onPressed:
+                            savePayment,
+                        icon: const Icon(
+                          Icons.save,
+                        ),
+                        label: const Text(
+                          'SAVE PAYMENT',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+    );
+  }
 }
