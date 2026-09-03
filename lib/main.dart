@@ -4448,7 +4448,7 @@ class _PaymentsPageState
     });
   }
 
-    Future<void> addPayment() async {
+      Future<void> addPayment() async {
     final result =
         await Navigator.push<Payment>(
       context,
@@ -4472,16 +4472,7 @@ class _PaymentsPageState
         {result.customerId},
       );
     }
-    }
-
-    if (result == null) return;
-
-    setState(() {
-      payments.insert(0, result);
-    });
-
-    await PaymentStorage.save(payments);
-  }
+      }
 
   Future<void> deletePayment(
     Payment payment,
