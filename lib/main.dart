@@ -2152,7 +2152,42 @@ class _SalesPageState extends State<SalesPage> {
       invoices.insert(0, result);
     });
 
-    await InvoiceStorage.save(invoices);
+        await InvoiceStorage.save(invoices);
+
+    // ==========================================================
+    // UPDATE INVENTORY STOCK AFTER INVOICE
+    // ==========================================================
+
+    final sarees = await InventoryStorage.load();
+
+    for (final item in result.items) {
+      if (item.sareeId.trim().isEmpty) {
+        continue;
+      }
+
+      final index = sarees.indexWhere(
+        (saree) => saree.id == item.sareeId,
+      );
+
+      if (index == -1) {
+        continue;
+      }
+
+      if (item.priceCode == 'RETURN') {
+        // Returned goods come back into stock.
+        sarees[index].stock += item.quantity;
+      } else {
+        // Normal sale reduces stock.
+        sarees[index].stock -= item.quantity;
+
+        // Never allow stock to become negative.
+        if (sarees[index].stock < 0) {
+          sarees[index].stock = 0;
+        }
+      }
+    }
+
+    await InventoryStorage.save(sarees);
 
     // ==========================================================
     // RECORD AMOUNT RECEIVED WITH THE INVOICE AS A PAYMENT
