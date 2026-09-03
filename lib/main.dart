@@ -2409,23 +2409,7 @@ Customer? selectedCustomer;
   });
   }
 
-  Future<void> addItem() async {
-  final result =
-      await showModalBottomSheet<InvoiceItem>(
-    context: context,
-    isScrollControlled: true,
-    builder: (_) => AddInvoiceItemSheet(
-      sarees: sarees,
-    ),
-  );
-
-  if (result != null) {
-    setState(() {
-      items.add(result);
-    });
-  }
-    }
-
+    Future<void> addItem() async {
     final result =
         await showModalBottomSheet<InvoiceItem>(
       context: context,
@@ -2440,7 +2424,7 @@ Customer? selectedCustomer;
         items.add(result);
       });
     }
-  }
+    }
 
   Future<void> saveInvoice() async {
     if (selectedCustomer == null) {
