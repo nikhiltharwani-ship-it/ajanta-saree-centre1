@@ -870,6 +870,111 @@ class InvoiceStorage {
     );
   }
 
+    // ==========================================================
+  // RECALCULATE INVOICE PAYMENTS FOR CUSTOMERS
+  // ==========================================================
+
+  static Future<void> recalculateCustomerPayments(
+    Set<String> customerIds,
+  ) async {
+    if (customerIds.isEmpty) return;
+
+    final invoices = await load();
+    final payments = await PaymentStorage.load();
+
+    for (final customerId in customerIds) {
+      final normalizedCustomerId = customerId.trim();
+
+      if (normalizedCustomerId.isEmpty) {
+        continue;
+      }
+
+      final customerInvoices = invoices
+          .where(
+            (invoice) =>
+                invoice.customerId.trim() ==
+                normalizedCustomerId,
+          )
+          .toList();
+
+      final customerPayments = payments
+          .where(
+            (payment) =>
+                payment.customerId.trim() ==
+                    normalizedCustomerId &&
+                payment.amount > 0,
+          )
+          .toList();
+
+      customerInvoices.sort((a, b) {
+        final dateCompare = a.date.compareTo(b.date);
+
+        if (dateCompare != 0) {
+          return dateCompare;
+        }
+
+        return a.number.compareTo(b.number);
+      });
+
+      customerPayments.sort((a, b) {
+        final dateCompare = a.date.compareTo(b.date);
+
+        if (dateCompare != 0) {
+          return dateCompare;
+        }
+
+        return a.id.compareTo(b.id);
+      });
+
+      for (final invoice in customerInvoices) {
+        invoice.paid = 0;
+
+        invoice.outstanding =
+            invoice.grandTotal > 0
+                ? invoice.grandTotal
+                : 0;
+      }
+
+      for (final payment in customerPayments) {
+        double remainingPayment = payment.amount;
+
+        for (final invoice in customerInvoices) {
+          if (remainingPayment <= 0) {
+            break;
+          }
+
+          if (invoice.grandTotal <= 0) {
+            continue;
+          }
+
+          final remainingInvoiceAmount =
+              invoice.grandTotal - invoice.paid;
+
+          if (remainingInvoiceAmount <= 0) {
+            continue;
+          }
+
+          final amountToApply =
+              remainingPayment < remainingInvoiceAmount
+                  ? remainingPayment
+                  : remainingInvoiceAmount;
+
+          invoice.paid += amountToApply;
+
+          invoice.outstanding =
+              invoice.grandTotal - invoice.paid;
+
+          if (invoice.outstanding < 0) {
+            invoice.outstanding = 0;
+          }
+
+          remainingPayment -= amountToApply;
+        }
+      }
+    }
+
+    await save(invoices);
+  }
   static Future<String> nextInvoiceNumber() async {
     final prefs = await SharedPreferences.getInstance();
 
