@@ -962,6 +962,265 @@ class TraderPaymentStorage {
   }
 }
 
+// ============================================================
+// TRADER LEDGER PAGE
+// ============================================================
+
+class TraderLedgerPage extends StatefulWidget {
+  const TraderLedgerPage({super.key});
+
+  @override
+  State<TraderLedgerPage> createState() =>
+      _TraderLedgerPageState();
+}
+
+class _TraderLedgerPageState
+    extends State<TraderLedgerPage> {
+  List<Purchase> purchases = [];
+  List<TraderPayment> payments = [];
+
+  bool loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    loadLedger();
+  }
+
+  Future<void> loadLedger() async {
+    final purchaseData =
+        await PurchaseStorage.load();
+
+    final paymentData =
+        await TraderPaymentStorage.load();
+
+    if (!mounted) return;
+
+    setState(() {
+      purchases = purchaseData;
+      payments = paymentData;
+      loading = false;
+    });
+  }
+
+  String normalizeTrader(String name) {
+    return name.trim().toLowerCase();
+  }
+
+  String displayTraderName(String name) {
+    final trimmed = name.trim();
+
+    if (trimmed.isEmpty) {
+      return 'Unknown Trader';
+    }
+
+    return trimmed;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Map<String, String> traderNames = {};
+
+    for (final purchase in purchases) {
+      final key =
+          normalizeTrader(purchase.trader);
+
+      if (key.isNotEmpty &&
+          !traderNames.containsKey(key)) {
+        traderNames[key] =
+            displayTraderName(purchase.trader);
+      }
+    }
+
+    for (final payment in payments) {
+      final key =
+          normalizeTrader(payment.trader);
+
+      if (key.isNotEmpty &&
+          !traderNames.containsKey(key)) {
+        traderNames[key] =
+            displayTraderName(payment.trader);
+      }
+    }
+
+    final traderKeys =
+        traderNames.keys.toList()..sort();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Trader Ledger',
+        ),
+      ),
+      body: loading
+          ? const Center(
+              child: CircularProgressIndicator(),
+            )
+          : traderKeys.isEmpty
+              ? const Center(
+                  child: Text(
+                    'No trader transactions found.',
+                  ),
+                )
+              : ListView.builder(
+                  padding:
+                      const EdgeInsets.all(12),
+                  itemCount:
+                      traderKeys.length,
+                  itemBuilder:
+                      (context, index) {
+                    final traderKey =
+                        traderKeys[index];
+
+                    final traderName =
+                        traderNames[traderKey] ??
+                            'Unknown Trader';
+
+                    final traderPurchases =
+                        purchases.where(
+                      (purchase) =>
+                          normalizeTrader(
+                            purchase.trader,
+                          ) ==
+                          traderKey,
+                    );
+
+                    final traderPayments =
+                        payments.where(
+                      (payment) =>
+                          normalizeTrader(
+                            payment.trader,
+                          ) ==
+                          traderKey,
+                    );
+
+                    final totalPurchases =
+                        traderPurchases.fold<double>(
+                      0,
+                      (sum, purchase) =>
+                          sum + purchase.total,
+                    );
+
+                    final totalPaid =
+                        traderPayments.fold<double>(
+                      0,
+                      (sum, payment) =>
+                          sum + payment.amount,
+                    );
+
+                    final outstanding =
+                        totalPurchases -
+                            totalPaid;
+
+                    return Card(
+                      margin:
+                          const EdgeInsets.only(
+                        bottom: 12,
+                      ),
+                      child: Padding(
+                        padding:
+                            const EdgeInsets.all(
+                          16,
+                        ),
+                        child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment
+                                  .start,
+                          children: [
+                            Text(
+                              traderName,
+                              style:
+                                  const TextStyle(
+                                fontSize: 18,
+                                fontWeight:
+                                    FontWeight.bold,
+                              ),
+                            ),
+
+                            const SizedBox(
+                              height: 12,
+                            ),
+
+                            Row(
+                              mainAxisAlignment:
+                                  MainAxisAlignment
+                                      .spaceBetween,
+                              children: [
+                                const Text(
+                                  'Purchases',
+                                ),
+                                Text(
+                                  '₹${totalPurchases.toStringAsFixed(2)}',
+                                  style:
+                                      const TextStyle(
+                                    fontWeight:
+                                        FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(
+                              height: 6,
+                            ),
+
+                            Row(
+                              mainAxisAlignment:
+                                  MainAxisAlignment
+                                      .spaceBetween,
+                              children: [
+                                const Text(
+                                  'Paid',
+                                ),
+                                Text(
+                                  '₹${totalPaid.toStringAsFixed(2)}',
+                                  style:
+                                      const TextStyle(
+                                    fontWeight:
+                                        FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            const Divider(
+                              height: 20,
+                            ),
+
+                            Row(
+                              mainAxisAlignment:
+                                  MainAxisAlignment
+                                      .spaceBetween,
+                              children: [
+                                const Text(
+                                  'Outstanding',
+                                  style:
+                                      TextStyle(
+                                    fontWeight:
+                                        FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  '₹${outstanding.toStringAsFixed(2)}',
+                                  style:
+                                      TextStyle(
+                                    fontSize: 16,
+                                    fontWeight:
+                                        FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+    );
+  }
+}
+
 class InventoryStorage {
   static const String key = 'ajanta_inventory';
 
