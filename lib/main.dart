@@ -4931,7 +4931,7 @@ class _PurchasesPageState
     await loadPurchases();
   }
 
-  Future<void> deletePurchase(
+    Future<void> deletePurchase(
     Purchase purchase,
   ) async {
     final confirmed =
@@ -4943,8 +4943,9 @@ class _PurchasesPageState
             'Delete Purchase?',
           ),
           content: Text(
-            'Purchase ${purchase.id} will be '
-            'permanently deleted.\n\n'
+            'Purchase ${purchase.id} will be permanently deleted.\n\n'
+            'Stock of ${purchase.sareeName} will also be reduced by '
+            '${purchase.quantity}.\n\n'
             'This action cannot be undone.',
           ),
           actions: [
@@ -4977,9 +4978,33 @@ class _PurchasesPageState
 
     if (confirmed != true) return;
 
+    // Remove the purchase record.
     await PurchaseStorage.delete(
       purchase.id,
     );
+
+    // Reverse the stock added by this purchase.
+    final inventory =
+        await InventoryStorage.load();
+
+    final index =
+        inventory.indexWhere(
+      (saree) =>
+          saree.id == purchase.sareeId,
+    );
+
+    if (index != -1) {
+      inventory[index].stock -=
+          purchase.quantity;
+
+      if (inventory[index].stock < 0) {
+        inventory[index].stock = 0;
+      }
+
+      await InventoryStorage.save(
+        inventory,
+      );
+    }
 
     await loadPurchases();
 
@@ -4989,12 +5014,11 @@ class _PurchasesPageState
         .showSnackBar(
       const SnackBar(
         content: Text(
-          'Purchase deleted.',
+          'Purchase deleted and stock adjusted.',
         ),
       ),
     );
-  }
-
+    }
   @override
   Widget build(BuildContext context) {
     return Scaffold(
