@@ -691,6 +691,7 @@ class Purchase {
   String sareeCode;
   double quantity;
   double purchasePrice;
+  double gst;
   String notes;
 
   Purchase({
@@ -702,10 +703,21 @@ class Purchase {
     required this.sareeCode,
     required this.quantity,
     required this.purchasePrice,
+    required this.gst,
     required this.notes,
   });
 
-  double get total => quantity * purchasePrice;
+  // Goods value before GST
+  double get total =>
+      quantity * purchasePrice;
+
+  // GST @ 5%
+  double get gstAmount =>
+      gst;
+
+  // Total amount actually payable to trader
+  double get grandTotal =>
+      total + gstAmount;
 
   Map<String, dynamic> toJson() {
     return {
@@ -717,6 +729,7 @@ class Purchase {
       'sareeCode': sareeCode,
       'quantity': quantity,
       'purchasePrice': purchasePrice,
+      'gst': gst,
       'notes': notes,
     };
   }
@@ -724,21 +737,42 @@ class Purchase {
   factory Purchase.fromJson(
     Map<String, dynamic> json,
   ) {
+    final quantity =
+        (json['quantity'] as num?)?.toDouble() ?? 0;
+
+    final purchasePrice =
+        (json['purchasePrice'] as num?)?.toDouble() ?? 0;
+
+    final goodsValue =
+        quantity * purchasePrice;
+
+    // All trader purchases use 5% GST.
+    // Older saved purchases that do not have
+    // a GST field are automatically migrated.
+    final gst =
+        json['gst'] != null
+            ? (json['gst'] as num?)?.toDouble() ?? 0
+            : goodsValue * 0.05;
+
     return Purchase(
       id: json['id']?.toString() ?? '',
       date: DateTime.tryParse(
             json['date']?.toString() ?? '',
           ) ??
           DateTime.now(),
-      trader: json['trader']?.toString() ?? '',
-      sareeId: json['sareeId']?.toString() ?? '',
-      sareeName: json['sareeName']?.toString() ?? '',
-      sareeCode: json['sareeCode']?.toString() ?? '',
-      quantity:
-          (json['quantity'] as num?)?.toDouble() ?? 0,
-      purchasePrice:
-          (json['purchasePrice'] as num?)?.toDouble() ?? 0,
-      notes: json['notes']?.toString() ?? '',
+      trader:
+          json['trader']?.toString() ?? '',
+      sareeId:
+          json['sareeId']?.toString() ?? '',
+      sareeName:
+          json['sareeName']?.toString() ?? '',
+      sareeCode:
+          json['sareeCode']?.toString() ?? '',
+      quantity: quantity,
+      purchasePrice: purchasePrice,
+      gst: gst,
+      notes:
+          json['notes']?.toString() ?? '',
     );
   }
 }
