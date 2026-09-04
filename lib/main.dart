@@ -4880,6 +4880,209 @@ class _AddPurchasePageState
 }
 
 // ============================================================
+// PURCHASES PAGE
+// ============================================================
+
+class PurchasesPage extends StatefulWidget {
+  const PurchasesPage({super.key});
+
+  @override
+  State<PurchasesPage> createState() =>
+      _PurchasesPageState();
+}
+
+class _PurchasesPageState
+    extends State<PurchasesPage> {
+  List<Purchase> purchases = [];
+
+  @override
+  void initState() {
+    super.initState();
+    loadPurchases();
+  }
+
+  Future<void> loadPurchases() async {
+    final data =
+        await PurchaseStorage.load();
+
+    if (!mounted) return;
+
+    data.sort(
+      (a, b) => b.date.compareTo(a.date),
+    );
+
+    setState(() {
+      purchases = data;
+    });
+  }
+
+  Future<void> addPurchase() async {
+    final result =
+        await Navigator.push<Purchase>(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            const AddPurchasePage(),
+      ),
+    );
+
+    if (result == null) return;
+
+    await loadPurchases();
+  }
+
+  Future<void> deletePurchase(
+    Purchase purchase,
+  ) async {
+    final confirmed =
+        await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text(
+            'Delete Purchase?',
+          ),
+          content: Text(
+            'Purchase ${purchase.id} will be '
+            'permanently deleted.\n\n'
+            'This action cannot be undone.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(
+                  context,
+                  false,
+                );
+              },
+              child: const Text(
+                'CANCEL',
+              ),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(
+                  context,
+                  true,
+                );
+              },
+              child: const Text(
+                'DELETE',
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+
+    await PurchaseStorage.delete(
+      purchase.id,
+    );
+
+    await loadPurchases();
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Purchase deleted.',
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Purchases',
+        ),
+      ),
+      body: purchases.isEmpty
+          ? const Center(
+              child: Text(
+                'No purchases found.',
+              ),
+            )
+          : ListView.builder(
+              padding:
+                  const EdgeInsets.all(12),
+              itemCount:
+                  purchases.length,
+              itemBuilder:
+                  (context, index) {
+                final purchase =
+                    purchases[index];
+
+                return Card(
+                  margin:
+                      const EdgeInsets.only(
+                    bottom: 10,
+                  ),
+                  child: ListTile(
+                    leading:
+                        const CircleAvatar(
+                      child: Icon(
+                        Icons
+                            .shopping_bag,
+                      ),
+                    ),
+                    title: Text(
+                      purchase.sareeName
+                              .trim()
+                              .isEmpty
+                          ? 'Purchase'
+                          : purchase
+                              .sareeName,
+                      style:
+                          const TextStyle(
+                        fontWeight:
+                            FontWeight.bold,
+                      ),
+                    ),
+                    subtitle: Text(
+                      '${purchase.id}\n'
+                      'Trader: ${purchase.trader}\n'
+                      'Qty: ${purchase.quantity}  •  '
+                      '₹${purchase.purchasePrice.toStringAsFixed(2)} each\n'
+                      'Total: ₹${purchase.total.toStringAsFixed(2)}',
+                    ),
+                    isThreeLine: true,
+                    trailing:
+                        IconButton(
+                      icon: const Icon(
+                        Icons
+                            .delete_outline,
+                      ),
+                      onPressed: () =>
+                          deletePurchase(
+                        purchase,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+      floatingActionButton:
+          FloatingActionButton.extended(
+        onPressed: addPurchase,
+        icon: const Icon(
+          Icons.add,
+        ),
+        label: const Text(
+          'Purchase',
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
 // MORE
 // ============================================================
 
