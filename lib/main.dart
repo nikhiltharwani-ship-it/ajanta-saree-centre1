@@ -5406,6 +5406,7 @@ class _AddPurchasePageState
       sareeCode: selectedSaree!.code,
       quantity: quantity,
       purchasePrice: purchasePrice,
+      gst: quantity * purchasePrice * 0.05,
       notes: notesController.text.trim(),
     );
 
