@@ -1334,11 +1334,33 @@ class _TraderLedgerPageState
         traderNames.keys.toList()..sort();
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Trader Ledger',
+  appBar: AppBar(
+    title: const Text(
+      'Trader Ledger',
+    ),
+    actions: [
+      IconButton(
+        tooltip: 'Pay Trader',
+        icon: const Icon(
+          Icons.payments,
         ),
+        onPressed: () async {
+          final result =
+              await Navigator.push<TraderPayment>(
+            context,
+            MaterialPageRoute(
+              builder: (_) =>
+                  const AddTraderPaymentPage(),
+            ),
+          );
+
+          if (result == null) return;
+
+          await loadLedger();
+        },
       ),
+    ],
+  ),
       body: loading
           ? const Center(
               child: CircularProgressIndicator(),
