@@ -678,6 +678,154 @@ class Saree {
 // INVENTORY STORAGE
 // ============================================================
 
+// ============================================================
+// PURCHASE MODEL
+// ============================================================
+
+class Purchase {
+  String id;
+  DateTime date;
+  String trader;
+  String sareeId;
+  String sareeName;
+  String sareeCode;
+  double quantity;
+  double purchasePrice;
+  String notes;
+
+  Purchase({
+    required this.id,
+    required this.date,
+    required this.trader,
+    required this.sareeId,
+    required this.sareeName,
+    required this.sareeCode,
+    required this.quantity,
+    required this.purchasePrice,
+    required this.notes,
+  });
+
+  double get total => quantity * purchasePrice;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'date': date.toIso8601String(),
+      'trader': trader,
+      'sareeId': sareeId,
+      'sareeName': sareeName,
+      'sareeCode': sareeCode,
+      'quantity': quantity,
+      'purchasePrice': purchasePrice,
+      'notes': notes,
+    };
+  }
+
+  factory Purchase.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    return Purchase(
+      id: json['id']?.toString() ?? '',
+      date: DateTime.tryParse(
+            json['date']?.toString() ?? '',
+          ) ??
+          DateTime.now(),
+      trader: json['trader']?.toString() ?? '',
+      sareeId: json['sareeId']?.toString() ?? '',
+      sareeName: json['sareeName']?.toString() ?? '',
+      sareeCode: json['sareeCode']?.toString() ?? '',
+      quantity:
+          (json['quantity'] as num?)?.toDouble() ?? 0,
+      purchasePrice:
+          (json['purchasePrice'] as num?)?.toDouble() ?? 0,
+      notes: json['notes']?.toString() ?? '',
+    );
+  }
+}
+
+// ============================================================
+// PURCHASE STORAGE
+// ============================================================
+
+class PurchaseStorage {
+  static const String purchasesKey =
+      'ajanta_purchases';
+
+  static const String purchaseNumberKey =
+      'ajanta_purchase_number';
+
+  static Future<List<Purchase>> load() async {
+    final prefs =
+        await SharedPreferences.getInstance();
+
+    final data =
+        prefs.getString(purchasesKey);
+
+    if (data == null || data.isEmpty) {
+      return [];
+    }
+
+    try {
+      final decoded = jsonDecode(data) as List;
+
+      return decoded
+          .map(
+            (item) => Purchase.fromJson(
+              Map<String, dynamic>.from(item),
+            ),
+          )
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static Future<void> save(
+    List<Purchase> purchases,
+  ) async {
+    final prefs =
+        await SharedPreferences.getInstance();
+
+    await prefs.setString(
+      purchasesKey,
+      jsonEncode(
+        purchases
+            .map(
+              (purchase) => purchase.toJson(),
+            )
+            .toList(),
+      ),
+    );
+  }
+
+  static Future<String> nextPurchaseId() async {
+    final prefs =
+        await SharedPreferences.getInstance();
+
+    final next =
+        (prefs.getInt(purchaseNumberKey) ?? 0) + 1;
+
+    await prefs.setInt(
+      purchaseNumberKey,
+      next,
+    );
+
+    return 'PUR-${next.toString().padLeft(4, '0')}';
+  }
+
+  static Future<void> delete(
+    String purchaseId,
+  ) async {
+    final purchases = await load();
+
+    purchases.removeWhere(
+      (purchase) => purchase.id == purchaseId,
+    );
+
+    await save(purchases);
+  }
+}
+
 class InventoryStorage {
   static const String key = 'ajanta_inventory';
 
