@@ -826,6 +826,142 @@ class PurchaseStorage {
   }
 }
 
+// ============================================================
+// TRADER PAYMENT MODEL
+// ============================================================
+
+class TraderPayment {
+  String id;
+  DateTime date;
+  String trader;
+  double amount;
+  String reference;
+  String notes;
+
+  TraderPayment({
+    required this.id,
+    required this.date,
+    required this.trader,
+    required this.amount,
+    required this.reference,
+    required this.notes,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'date': date.toIso8601String(),
+      'trader': trader,
+      'amount': amount,
+      'reference': reference,
+      'notes': notes,
+    };
+  }
+
+  factory TraderPayment.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    return TraderPayment(
+      id: json['id']?.toString() ?? '',
+      date: DateTime.tryParse(
+            json['date']?.toString() ?? '',
+          ) ??
+          DateTime.now(),
+      trader: json['trader']?.toString() ?? '',
+      amount:
+          (json['amount'] as num?)?.toDouble() ?? 0,
+      reference:
+          json['reference']?.toString() ?? '',
+      notes:
+          json['notes']?.toString() ?? '',
+    );
+  }
+}
+
+// ============================================================
+// TRADER PAYMENT STORAGE
+// ============================================================
+
+class TraderPaymentStorage {
+  static const String paymentsKey =
+      'ajanta_trader_payments';
+
+  static const String paymentNumberKey =
+      'ajanta_trader_payment_number';
+
+  static Future<List<TraderPayment>> load() async {
+    final prefs =
+        await SharedPreferences.getInstance();
+
+    final data =
+        prefs.getString(paymentsKey);
+
+    if (data == null || data.isEmpty) {
+      return [];
+    }
+
+    try {
+      final decoded =
+          jsonDecode(data) as List;
+
+      return decoded
+          .map(
+            (item) => TraderPayment.fromJson(
+              Map<String, dynamic>.from(item),
+            ),
+          )
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static Future<void> save(
+    List<TraderPayment> payments,
+  ) async {
+    final prefs =
+        await SharedPreferences.getInstance();
+
+    await prefs.setString(
+      paymentsKey,
+      jsonEncode(
+        payments
+            .map(
+              (payment) => payment.toJson(),
+            )
+            .toList(),
+      ),
+    );
+  }
+
+  static Future<String> nextPaymentId() async {
+    final prefs =
+        await SharedPreferences.getInstance();
+
+    final next =
+        (prefs.getInt(paymentNumberKey) ?? 0) + 1;
+
+    await prefs.setInt(
+      paymentNumberKey,
+      next,
+    );
+
+    return 'TP-${next.toString().padLeft(4, '0')}';
+  }
+
+  static Future<void> delete(
+    String paymentId,
+  ) async {
+    final payments = await load();
+
+    payments.removeWhere(
+      (payment) => payment.id == paymentId,
+    );
+
+    await save(payments);
+  }
+}
+
 class InventoryStorage {
   static const String key = 'ajanta_inventory';
 
