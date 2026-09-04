@@ -963,6 +963,293 @@ class TraderPaymentStorage {
 }
 
 // ============================================================
+// ADD TRADER PAYMENT
+// ============================================================
+
+class AddTraderPaymentPage extends StatefulWidget {
+  const AddTraderPaymentPage({super.key});
+
+  @override
+  State<AddTraderPaymentPage> createState() =>
+      _AddTraderPaymentPageState();
+}
+
+class _AddTraderPaymentPageState
+    extends State<AddTraderPaymentPage> {
+  final amountController =
+      TextEditingController();
+
+  final referenceController =
+      TextEditingController();
+
+  final notesController =
+      TextEditingController();
+
+  List<Purchase> purchases = [];
+
+  List<String> traders = [];
+
+  String? selectedTrader;
+
+  bool loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    loadTraders();
+  }
+
+  @override
+  void dispose() {
+    amountController.dispose();
+    referenceController.dispose();
+    notesController.dispose();
+    super.dispose();
+  }
+
+  Future<void> loadTraders() async {
+    final data =
+        await PurchaseStorage.load();
+
+    final traderMap = <String, String>{};
+
+    for (final purchase in data) {
+      final name =
+          purchase.trader.trim();
+
+      if (name.isEmpty) {
+        continue;
+      }
+
+      final key =
+          name.toLowerCase();
+
+      if (!traderMap.containsKey(key)) {
+        traderMap[key] = name;
+      }
+    }
+
+    final traderList =
+        traderMap.values.toList();
+
+    traderList.sort(
+      (a, b) => a.toLowerCase()
+          .compareTo(b.toLowerCase()),
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      purchases = data;
+      traders = traderList;
+      loading = false;
+    });
+  }
+
+  Future<void> savePayment() async {
+    if (selectedTrader == null ||
+        selectedTrader!.trim().isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please select a trader.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final amount =
+        double.tryParse(
+      amountController.text.trim(),
+    );
+
+    if (amount == null ||
+        amount <= 0) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please enter a valid payment amount.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final paymentId =
+        await TraderPaymentStorage
+            .nextPaymentId();
+
+    final payment =
+        TraderPayment(
+      id: paymentId,
+      date: DateTime.now(),
+      trader: selectedTrader!.trim(),
+      amount: amount,
+      reference:
+          referenceController.text.trim(),
+      notes:
+          notesController.text.trim(),
+    );
+
+    final payments =
+        await TraderPaymentStorage.load();
+
+    payments.add(payment);
+
+    await TraderPaymentStorage.save(
+      payments,
+    );
+
+    if (!mounted) return;
+
+    Navigator.pop(
+      context,
+      payment,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Pay Trader',
+        ),
+      ),
+      body: loading
+          ? const Center(
+              child:
+                  CircularProgressIndicator(),
+            )
+          : traders.isEmpty
+              ? const Center(
+                  child: Text(
+                    'No traders found.\n'
+                    'Please add a purchase first.',
+                    textAlign:
+                        TextAlign.center,
+                  ),
+                )
+              : SingleChildScrollView(
+                  padding:
+                      const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment
+                            .stretch,
+                    children: [
+                      DropdownButtonFormField<
+                          String>(
+                        value:
+                            selectedTrader,
+                        decoration:
+                            const InputDecoration(
+                          labelText:
+                              'Select Trader',
+                          border:
+                              OutlineInputBorder(),
+                        ),
+                        items:
+                            traders.map(
+                          (trader) {
+                            return DropdownMenuItem<
+                                String>(
+                              value: trader,
+                              child:
+                                  Text(trader),
+                            );
+                          },
+                        ).toList(),
+                        onChanged:
+                            (value) {
+                          setState(() {
+                            selectedTrader =
+                                value;
+                          });
+                        },
+                      ),
+
+                      const SizedBox(
+                        height: 16,
+                      ),
+
+                      TextField(
+                        controller:
+                            amountController,
+                        keyboardType:
+                            const TextInputType
+                                .numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration:
+                            const InputDecoration(
+                          labelText:
+                              'Payment Amount',
+                          prefixText: '₹ ',
+                          border:
+                              OutlineInputBorder(),
+                        ),
+                      ),
+
+                      const SizedBox(
+                        height: 16,
+                      ),
+
+                      TextField(
+                        controller:
+                            referenceController,
+                        decoration:
+                            const InputDecoration(
+                          labelText:
+                              'Reference / Transaction No.',
+                          border:
+                              OutlineInputBorder(),
+                        ),
+                      ),
+
+                      const SizedBox(
+                        height: 16,
+                      ),
+
+                      TextField(
+                        controller:
+                            notesController,
+                        maxLines: 3,
+                        decoration:
+                            const InputDecoration(
+                          labelText:
+                              'Notes',
+                          border:
+                              OutlineInputBorder(),
+                        ),
+                      ),
+
+                      const SizedBox(
+                        height: 24,
+                      ),
+
+                      FilledButton.icon(
+                        onPressed:
+                            savePayment,
+                        icon: const Icon(
+                          Icons
+                              .payments,
+                        ),
+                        label: const Text(
+                          'SAVE PAYMENT',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+    );
+  }
+}
+
+// ============================================================
 // TRADER LEDGER PAGE
 // ============================================================
 
