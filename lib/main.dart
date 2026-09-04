@@ -5530,6 +5530,23 @@ class MorePage extends StatelessWidget {
             );
           },
         ),
+                    ListTile(
+            leading: const Icon(
+              Icons.account_balance,
+            ),
+            title: const Text(
+              'Trader Ledger',
+            ),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      const TraderLedgerPage(),
+                ),
+              );
+            },
+          ),
           ListTile(
             leading: Icon(Icons.assignment_return),
             title: Text('Returns'),
