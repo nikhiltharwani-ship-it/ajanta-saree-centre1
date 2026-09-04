@@ -4533,6 +4533,353 @@ class _CreateCustomerPageState
 }
 
 // ============================================================
+// ADD PURCHASE PAGE
+// ============================================================
+
+class AddPurchasePage extends StatefulWidget {
+  const AddPurchasePage({super.key});
+
+  @override
+  State<AddPurchasePage> createState() =>
+      _AddPurchasePageState();
+}
+
+class _AddPurchasePageState
+    extends State<AddPurchasePage> {
+  final traderController =
+      TextEditingController();
+
+  final quantityController =
+      TextEditingController();
+
+  final priceController =
+      TextEditingController();
+
+  final notesController =
+      TextEditingController();
+
+  List<Saree> sarees = [];
+
+  Saree? selectedSaree;
+
+  bool loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    loadInventory();
+  }
+
+  @override
+  void dispose() {
+    traderController.dispose();
+    quantityController.dispose();
+    priceController.dispose();
+    notesController.dispose();
+    super.dispose();
+  }
+
+  Future<void> loadInventory() async {
+    final data =
+        await InventoryStorage.load();
+
+    if (!mounted) return;
+
+    setState(() {
+      sarees = data;
+      loading = false;
+    });
+  }
+
+  Future<void> savePurchase() async {
+    if (selectedSaree == null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please select a saree.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final trader =
+        traderController.text.trim();
+
+    final quantity =
+        double.tryParse(
+          quantityController.text.trim(),
+        );
+
+    final purchasePrice =
+        double.tryParse(
+          priceController.text.trim(),
+        );
+
+    if (trader.isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please enter trader name.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (quantity == null ||
+        quantity <= 0) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please enter a valid quantity.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (purchasePrice == null ||
+        purchasePrice < 0) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please enter a valid purchase price.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final purchaseId =
+        await PurchaseStorage
+            .nextPurchaseId();
+
+    final purchase = Purchase(
+      id: purchaseId,
+      date: DateTime.now(),
+      trader: trader,
+      sareeId: selectedSaree!.id,
+      sareeName: selectedSaree!.name,
+      sareeCode: selectedSaree!.code,
+      quantity: quantity,
+      purchasePrice: purchasePrice,
+      notes: notesController.text.trim(),
+    );
+
+    // Save purchase record.
+    final purchases =
+        await PurchaseStorage.load();
+
+    purchases.add(purchase);
+
+    await PurchaseStorage.save(
+      purchases,
+    );
+
+    // Increase inventory stock.
+    final inventory =
+        await InventoryStorage.load();
+
+    final index =
+        inventory.indexWhere(
+      (saree) =>
+          saree.id == selectedSaree!.id,
+    );
+
+    if (index != -1) {
+      inventory[index].stock += quantity;
+
+      // Update purchase price in the
+      // inventory master as well.
+      inventory[index].purchasePrice =
+          purchasePrice;
+
+      await InventoryStorage.save(
+        inventory,
+      );
+    }
+
+    if (!mounted) return;
+
+    Navigator.pop(
+      context,
+      purchase,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Add Purchase',
+        ),
+      ),
+      body: loading
+          ? const Center(
+              child:
+                  CircularProgressIndicator(),
+            )
+          : sarees.isEmpty
+              ? const Center(
+                  child: Text(
+                    'No inventory items found.\n'
+                    'Please add a saree first.',
+                    textAlign:
+                        TextAlign.center,
+                  ),
+                )
+              : SingleChildScrollView(
+                  padding:
+                      const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment
+                            .stretch,
+                    children: [
+                      DropdownButtonFormField<
+                          Saree>(
+                        value: selectedSaree,
+                        decoration:
+                            const InputDecoration(
+                          labelText:
+                              'Select Saree',
+                          border:
+                              OutlineInputBorder(),
+                        ),
+                        items: sarees.map(
+                          (saree) {
+                            return DropdownMenuItem<
+                                Saree>(
+                              value: saree,
+                              child: Text(
+                                '${saree.name} '
+                                '(${saree.code})',
+                              ),
+                            );
+                          },
+                        ).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            selectedSaree =
+                                value;
+
+                            if (value != null) {
+                              priceController
+                                  .text =
+                                  value
+                                      .purchasePrice
+                                      .toString();
+                            }
+                          });
+                        },
+                      ),
+
+                      const SizedBox(
+                        height: 16,
+                      ),
+
+                      TextField(
+                        controller:
+                            traderController,
+                        decoration:
+                            const InputDecoration(
+                          labelText:
+                              'Trader',
+                          border:
+                              OutlineInputBorder(),
+                        ),
+                      ),
+
+                      const SizedBox(
+                        height: 16,
+                      ),
+
+                      TextField(
+                        controller:
+                            quantityController,
+                        keyboardType:
+                            const TextInputType
+                                .numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration:
+                            const InputDecoration(
+                          labelText:
+                              'Quantity',
+                          hintText:
+                              'e.g. 10',
+                          border:
+                              OutlineInputBorder(),
+                        ),
+                      ),
+
+                      const SizedBox(
+                        height: 16,
+                      ),
+
+                      TextField(
+                        controller:
+                            priceController,
+                        keyboardType:
+                            const TextInputType
+                                .numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration:
+                            const InputDecoration(
+                          labelText:
+                              'Purchase Price',
+                          prefixText: '₹ ',
+                          border:
+                              OutlineInputBorder(),
+                        ),
+                      ),
+
+                      const SizedBox(
+                        height: 16,
+                      ),
+
+                      TextField(
+                        controller:
+                            notesController,
+                        maxLines: 3,
+                        decoration:
+                            const InputDecoration(
+                          labelText:
+                              'Notes',
+                          border:
+                              OutlineInputBorder(),
+                        ),
+                      ),
+
+                      const SizedBox(
+                        height: 24,
+                      ),
+
+                      FilledButton.icon(
+                        onPressed:
+                            savePurchase,
+                        icon: const Icon(
+                          Icons.save,
+                        ),
+                        label: const Text(
+                          'SAVE PURCHASE',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+    );
+  }
+}
+
+// ============================================================
 // MORE
 // ============================================================
 
