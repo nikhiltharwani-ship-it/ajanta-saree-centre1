@@ -4549,9 +4549,17 @@ class MorePage extends StatelessWidget {
         padding: EdgeInsets.all(16),
         children: [
           ListTile(
-            leading: Icon(Icons.shopping_bag),
-            title: Text('Purchases'),
-          ),
+  leading: const Icon(Icons.shopping_bag),
+  title: const Text('Purchases'),
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const PurchasesPage(),
+      ),
+    );
+  },
+),
           ListTile(
             leading: Icon(Icons.assignment_return),
             title: Text('Returns'),
