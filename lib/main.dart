@@ -1262,10 +1262,123 @@ class _AddTraderPaymentPageState
                       ),
 
                       const SizedBox(
-                        height: 24,
-                      ),
+  height: 24,
+),
 
-                      FilledButton.icon(
+Builder(
+  builder: (context) {
+    final quantity =
+        double.tryParse(
+              quantityController.text.trim(),
+            ) ??
+            0;
+
+    final purchasePrice =
+        double.tryParse(
+              purchasePriceController.text.trim(),
+            ) ??
+            0;
+
+    final goodsValue =
+        quantity * purchasePrice;
+
+    final gstAmount =
+        goodsValue * 0.05;
+
+    final grandTotal =
+        goodsValue + gstAmount;
+
+    return Card(
+      child: Padding(
+        padding:
+            const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Purchase Summary',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight:
+                    FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(
+              height: 12,
+            ),
+
+            Row(
+              mainAxisAlignment:
+                  MainAxisAlignment
+                      .spaceBetween,
+              children: [
+                const Text(
+                  'Goods Value',
+                ),
+                Text(
+                  '₹ ${goodsValue.toStringAsFixed(2)}',
+                ),
+              ],
+            ),
+
+            const SizedBox(
+              height: 8,
+            ),
+
+            Row(
+              mainAxisAlignment:
+                  MainAxisAlignment
+                      .spaceBetween,
+              children: [
+                const Text(
+                  'GST @ 5%',
+                ),
+                Text(
+                  '₹ ${gstAmount.toStringAsFixed(2)}',
+                ),
+              ],
+            ),
+
+            const Divider(
+              height: 20,
+            ),
+
+            Row(
+              mainAxisAlignment:
+                  MainAxisAlignment
+                      .spaceBetween,
+              children: [
+                const Text(
+                  'Total Payable',
+                  style: TextStyle(
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  '₹ ${grandTotal.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontWeight:
+                        FontWeight.bold,
+                    fontSize: 17,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  },
+),
+
+const SizedBox(
+  height: 16,
+),
+
+FilledButton.icon(
                         onPressed:
                             savePayment,
                         icon: const Icon(
