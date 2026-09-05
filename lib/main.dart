@@ -4342,14 +4342,45 @@ class _InventoryPageState
   }
 
   Future<void> loadInventory() async {
-    final data = await InventoryStorage.load();
+  final inventoryData =
+      await InventoryStorage.load();
 
-    if (!mounted) return;
+  final purchaseData =
+      await PurchaseStorage.load();
 
-    setState(() {
-      sarees = data;
-      loading = false;
-    });
+  final traderMap = <String, String>{};
+
+  for (final purchase in purchaseData) {
+    final name =
+        purchase.trader.trim();
+
+    if (name.isEmpty) {
+      continue;
+    }
+
+    final key =
+        name.toLowerCase();
+
+    if (!traderMap.containsKey(key)) {
+      traderMap[key] = name;
+    }
+  }
+
+  final traderList =
+      traderMap.values.toList();
+
+  traderList.sort(
+    (a, b) => a.toLowerCase()
+        .compareTo(b.toLowerCase()),
+  );
+
+  if (!mounted) return;
+
+  setState(() {
+    sarees = inventoryData;
+    traders = traderList;
+    loading = false;
+  });
   }
 
   Future<void> saveInventory() async {
@@ -5300,10 +5331,15 @@ class _AddPurchasePageState
 
   List<Saree> sarees = [];
 
-  Saree? selectedSaree;
+List<String> traders = [];
 
-  bool loading = true;
+Saree? selectedSaree;
 
+String? selectedTrader;
+
+bool newTrader = false;
+
+bool loading = true;
   @override
   void initState() {
     super.initState();
@@ -5320,15 +5356,45 @@ class _AddPurchasePageState
   }
 
   Future<void> loadInventory() async {
-    final data =
-        await InventoryStorage.load();
+  final inventoryData =
+      await InventoryStorage.load();
 
-    if (!mounted) return;
+  final purchaseData =
+      await PurchaseStorage.load();
 
-    setState(() {
-      sarees = data;
-      loading = false;
-    });
+  final traderMap = <String, String>{};
+
+  for (final purchase in purchaseData) {
+    final name =
+        purchase.trader.trim();
+
+    if (name.isEmpty) {
+      continue;
+    }
+
+    final key =
+        name.toLowerCase();
+
+    if (!traderMap.containsKey(key)) {
+      traderMap[key] = name;
+    }
+  }
+
+  final traderList =
+      traderMap.values.toList();
+
+  traderList.sort(
+    (a, b) => a.toLowerCase()
+        .compareTo(b.toLowerCase()),
+  );
+
+  if (!mounted) return;
+
+  setState(() {
+    sarees = inventoryData;
+    traders = traderList;
+    loading = false;
+  });
   }
 
   Future<void> savePurchase() async {
@@ -5525,17 +5591,71 @@ class _AddPurchasePageState
                         height: 16,
                       ),
 
-                      TextField(
-                        controller:
-                            traderController,
-                        decoration:
-                            const InputDecoration(
-                          labelText:
-                              'Trader',
-                          border:
-                              OutlineInputBorder(),
-                        ),
-                      ),
+                      DropdownButtonFormField<String>(
+  value: newTrader
+      ? '__new__'
+      : selectedTrader,
+  isExpanded: true,
+  menuMaxHeight: 350,
+  decoration: const InputDecoration(
+    labelText: 'Trader',
+    border: OutlineInputBorder(),
+  ),
+  items: [
+    ...traders.map(
+      (trader) {
+        return DropdownMenuItem<String>(
+          value: trader,
+          child: Text(
+            trader,
+            overflow:
+                TextOverflow.ellipsis,
+          ),
+        );
+      },
+    ),
+    const DropdownMenuItem<String>(
+      value: '__new__',
+      child: Text(
+        '+ Add New Trader',
+      ),
+    ),
+  ],
+  onChanged: (value) {
+    if (value == '__new__') {
+      setState(() {
+        selectedTrader = null;
+        newTrader = true;
+        traderController.clear();
+      });
+      return;
+    }
+
+    setState(() {
+      selectedTrader = value;
+      newTrader = false;
+
+      if (value != null) {
+        traderController.text = value;
+      }
+    });
+  },
+),
+                      if (newTrader) ...[
+  const SizedBox(height: 12),
+
+  TextField(
+    controller:
+        traderController,
+    decoration:
+        const InputDecoration(
+      labelText:
+          'New Trader Name',
+      border:
+          OutlineInputBorder(),
+    ),
+  ),
+],
 
                       const SizedBox(
                         height: 16,
@@ -5565,15 +5685,18 @@ class _AddPurchasePageState
                       ),
 
                       TextField(
-                        controller:
-                            priceController,
-                        keyboardType:
-                            const TextInputType
-                                .numberWithOptions(
-                          decimal: true,
-                        ),
-                        decoration:
-                            const InputDecoration(
+  controller:
+      priceController,
+  keyboardType:
+      const TextInputType
+          .numberWithOptions(
+    decimal: true,
+  ),
+  onChanged: (_) {
+    setState(() {});
+  },
+  decoration:
+      const InputDecoration(
                           labelText:
                               'Purchase Price',
                           prefixText: '₹ ',
