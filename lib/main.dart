@@ -4047,9 +4047,7 @@ class _AddInvoiceItemSheetState
                           .numberWithOptions(
                     decimal: true,
                   ),
-                    onChanged: (_) {
-    setState(() {});
-  },
+                  
                   onChanged: (_) =>
                       updatePrice(),
                   decoration:
