@@ -5616,10 +5616,10 @@ Card(
                 0;
 
         final purchasePrice =
-            double.tryParse(
-                  purchasePriceController.text.trim(),
-                ) ??
-                0;
+    double.tryParse(
+          priceController.text.trim(),
+        ) ??
+        0;
 
         final goodsValue =
             quantity * purchasePrice;
