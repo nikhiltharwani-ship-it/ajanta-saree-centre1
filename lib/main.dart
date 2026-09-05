@@ -1175,36 +1175,35 @@ class _AddTraderPaymentPageState
                         CrossAxisAlignment
                             .stretch,
                     children: [
-                      DropdownButtonFormField<
-                          String>(
-                        value:
-                            selectedTrader,
-                        decoration:
-                            const InputDecoration(
-                          labelText:
-                              'Select Trader',
-                          border:
-                              OutlineInputBorder(),
-                        ),
-                        items:
-                            traders.map(
-                          (trader) {
-                            return DropdownMenuItem<
-                                String>(
-                              value: trader,
-                              child:
-                                  Text(trader),
-                            );
-                          },
-                        ).toList(),
-                        onChanged:
-                            (value) {
-                          setState(() {
-                            selectedTrader =
-                                value;
-                          });
-                        },
-                      ),
+                      DropdownButtonFormField<String>(
+  value:
+      selectedTrader,
+  decoration:
+      const InputDecoration(
+    labelText:
+        'Select Trader',
+    border:
+        OutlineInputBorder(),
+  ),
+  menuMaxHeight: 350,
+  items:
+      traders.map(
+    (trader) {
+      return DropdownMenuItem<String>(
+        value: trader,
+        child:
+            Text(trader),
+      );
+    },
+  ).toList(),
+  onChanged:
+      (value) {
+    setState(() {
+      selectedTrader =
+          value;
+    });
+  },
+),
 
                       const SizedBox(
                         height: 16,
@@ -4048,6 +4047,9 @@ class _AddInvoiceItemSheetState
                           .numberWithOptions(
                     decimal: true,
                   ),
+                    onChanged: (_) {
+    setState(() {});
+  },
                   onChanged: (_) =>
                       updatePrice(),
                   decoration:
@@ -4269,6 +4271,9 @@ class _AddInvoiceItemSheetState
                       .numberWithOptions(
                 decimal: true,
               ),
+                onChanged: (_) {
+    setState(() {});
+  },
               decoration:
                   const InputDecoration(
                 labelText: 'Quantity',
