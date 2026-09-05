@@ -1435,12 +1435,26 @@ class _TraderLedgerPageState
                           traderKey,
                     );
 
-                    final totalPurchases =
-                        traderPurchases.fold<double>(
-                      0,
-                      (sum, purchase) =>
-                          sum + purchase.total,
-                    );
+                    final totalGoods =
+    traderPurchases.fold<double>(
+  0,
+  (sum, purchase) =>
+      sum + purchase.total,
+);
+
+final totalGST =
+    traderPurchases.fold<double>(
+  0,
+  (sum, purchase) =>
+      sum + purchase.gstAmount,
+);
+
+final totalPayable =
+    traderPurchases.fold<double>(
+  0,
+  (sum, purchase) =>
+      sum + purchase.grandTotal,
+);
 
                     final totalPaid =
                         traderPayments.fold<double>(
@@ -1450,8 +1464,8 @@ class _TraderLedgerPageState
                     );
 
                     final outstanding =
-                        totalPurchases -
-                            totalPaid;
+    totalPayable -
+        totalPaid;
 
                     return Card(
                       margin:
