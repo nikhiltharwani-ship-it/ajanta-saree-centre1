@@ -1505,7 +1505,10 @@ final totalPayable =
   'Goods Value',
 ),
                                 ),
-                                Text(
+                                const Text(
+  'Goods Value',
+),
+Text(
   '₹${totalGoods.toStringAsFixed(2)}',
   style:
       const TextStyle(
@@ -5677,23 +5680,26 @@ bool loading = true;
                       ),
 
                       TextField(
-                        controller:
-                            quantityController,
-                        keyboardType:
-                            const TextInputType
-                                .numberWithOptions(
-                          decimal: true,
-                        ),
-                        decoration:
-                            const InputDecoration(
-                          labelText:
-                              'Quantity',
-                          hintText:
-                              'e.g. 10',
-                          border:
-                              OutlineInputBorder(),
-                        ),
-                      ),
+  controller:
+      quantityController,
+  keyboardType:
+      const TextInputType
+          .numberWithOptions(
+    decimal: true,
+  ),
+  onChanged: (_) {
+    setState(() {});
+  },
+  decoration:
+      const InputDecoration(
+    labelText:
+        'Quantity',
+    hintText:
+        'e.g. 10',
+    border:
+        OutlineInputBorder(),
+  ),
+),
 
                       const SizedBox(
                         height: 16,
