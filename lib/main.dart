@@ -1468,54 +1468,148 @@ final totalPayable =
         totalPaid;
 
                     return Card(
-                      margin:
-                          const EdgeInsets.only(
-                        bottom: 12,
-                      ),
-                      child: Padding(
-                        padding:
-                            const EdgeInsets.all(
-                          16,
-                        ),
-                        child: Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment
-                                  .start,
-                          children: [
-                            Text(
-                              traderName,
-                              style:
-                                  const TextStyle(
-                                fontSize: 18,
-                                fontWeight:
-                                    FontWeight.bold,
-                              ),
-                            ),
-
-                            const SizedBox(
-                              height: 12,
-                            ),
-
-                            Row(
-                              mainAxisAlignment:
-                                  MainAxisAlignment
-                                      .spaceBetween,
-                              children: [
-                                const Text(
-  'Goods Value',
-),
-                                ),
-                                const Text(
-  'Goods Value',
-),
-Text(
-  '₹${totalGoods.toStringAsFixed(2)}',
-  style:
-      const TextStyle(
-    fontWeight:
-        FontWeight.bold,
+  margin:
+      const EdgeInsets.only(
+    bottom: 12,
   ),
-),
+  child: Padding(
+    padding:
+        const EdgeInsets.all(
+      16,
+    ),
+    child: Column(
+      crossAxisAlignment:
+          CrossAxisAlignment.start,
+      children: [
+        Text(
+          traderName,
+          style:
+              const TextStyle(
+            fontSize: 18,
+            fontWeight:
+                FontWeight.bold,
+          ),
+        ),
+
+        const SizedBox(
+          height: 12,
+        ),
+
+        Row(
+          mainAxisAlignment:
+              MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Goods Value',
+            ),
+            Text(
+              '₹${totalGoods.toStringAsFixed(2)}',
+              style:
+                  const TextStyle(
+                fontWeight:
+                    FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(
+          height: 6,
+        ),
+
+        Row(
+          mainAxisAlignment:
+              MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'GST @ 5%',
+            ),
+            Text(
+              '₹${totalGST.toStringAsFixed(2)}',
+              style:
+                  const TextStyle(
+                fontWeight:
+                    FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(
+          height: 6,
+        ),
+
+        Row(
+          mainAxisAlignment:
+              MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Total Payable',
+            ),
+            Text(
+              '₹${totalPayable.toStringAsFixed(2)}',
+              style:
+                  const TextStyle(
+                fontWeight:
+                    FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(
+          height: 6,
+        ),
+
+        Row(
+          mainAxisAlignment:
+              MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Paid',
+            ),
+            Text(
+              '₹${totalPaid.toStringAsFixed(2)}',
+              style:
+                  const TextStyle(
+                fontWeight:
+                    FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+
+        const Divider(
+          height: 20,
+        ),
+
+        Row(
+          mainAxisAlignment:
+              MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Outstanding',
+              style:
+                  TextStyle(
+                fontWeight:
+                    FontWeight.bold,
+              ),
+            ),
+            Text(
+              '₹${outstanding.toStringAsFixed(2)}',
+              style:
+                  const TextStyle(
+                fontSize: 16,
+                fontWeight:
+                    FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  ),
+);
                               ],
                             ),
 
@@ -4360,43 +4454,13 @@ class _InventoryPageState
   }
 
   Future<void> loadInventory() async {
-  final inventoryData =
+    final inventoryData =
       await InventoryStorage.load();
-
-  final purchaseData =
-      await PurchaseStorage.load();
-
-  final traderMap = <String, String>{};
-
-  for (final purchase in purchaseData) {
-    final name =
-        purchase.trader.trim();
-
-    if (name.isEmpty) {
-      continue;
-    }
-
-    final key =
-        name.toLowerCase();
-
-    if (!traderMap.containsKey(key)) {
-      traderMap[key] = name;
-    }
-  }
-
-  final traderList =
-      traderMap.values.toList();
-
-  traderList.sort(
-    (a, b) => a.toLowerCase()
-        .compareTo(b.toLowerCase()),
-  );
 
   if (!mounted) return;
 
   setState(() {
     sarees = inventoryData;
-    traders = traderList;
     loading = false;
   });
   }
