@@ -1502,16 +1502,17 @@ final totalPayable =
                                       .spaceBetween,
                               children: [
                                 const Text(
-                                  'Purchases',
+  'Goods Value',
+),
                                 ),
                                 Text(
-                                  '₹${totalPurchases.toStringAsFixed(2)}',
-                                  style:
-                                      const TextStyle(
-                                    fontWeight:
-                                        FontWeight.bold,
-                                  ),
-                                ),
+  '₹${totalGoods.toStringAsFixed(2)}',
+  style:
+      const TextStyle(
+    fontWeight:
+        FontWeight.bold,
+  ),
+),
                               ],
                             ),
 
