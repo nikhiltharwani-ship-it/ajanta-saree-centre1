@@ -1,0 +1,26 @@
+name: ajanta_saree_centre
+description: Ajanta Saree Centre shop management app
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.10.0 <4.0.0'
+  flutter: '>=3.35.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  shared_preferences: ^2.5.4
+  firebase_core: ^4.5.0
+  firebase_auth: ^6.2.0
+  cloud_firestore: ^6.9.0
+  cloud_functions: ^6.0.7
+  pdf: ^3.11.3
+  printing: ^5.14.2
+  excel: ^4.0.6
+  path_provider: ^2.1.5
+  file_picker: ^12.2.0
+  share_plus: ^13.3.0
+
+flutter:
+  uses-material-design: true
